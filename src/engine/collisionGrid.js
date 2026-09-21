@@ -69,18 +69,35 @@ export class CollisionGrid {
     return { x: col * this.step + this.step / 2, y: row * this.step + this.step / 2 };
   }
 
-  /** Ближайшая проходимая клетка (расширяющееся кольцо) — для недостижимой цели. */
+  /**
+   * Ближайшая проходимая клетка по РЕАЛЬНОМУ (евклидову) расстоянию, а не по
+   * порядку обхода кольца. Раньше кольцо по Чебышёву сканировалось строками
+   * сверху вниз и возвращало первую найденную клетку — на большом препятствии
+   * (бассейн, фонтан) это часто оказывался дальний угол кольца, а не ближний
+   * край препятствия, и герой уходил в случайную точку вместо ближайшей.
+   * Теперь среди каждого кольца выбирается минимум по расстоянию, и поиск
+   * останавливается, как только следующее кольцо по Чебышёву заведомо не может
+   * дать точку ближе уже найденной (Чебышёв ⩽ Евклид всегда).
+   */
   findNearestWalkable(col, row) {
     const maxR = Math.max(this.cols, this.rows);
+    let best = null;
+    let bestDist = Infinity;
     for (let r = 0; r <= maxR; r++) {
+      if (r > bestDist) break;
       for (let dr = -r; dr <= r; dr++) {
         for (let dc = -r; dc <= r; dc++) {
           if (Math.max(Math.abs(dc), Math.abs(dr)) !== r) continue;
-          if (this.cellWalkable(col + dc, row + dr)) return { col: col + dc, row: row + dr };
+          if (!this.cellWalkable(col + dc, row + dr)) continue;
+          const dist = Math.hypot(dc, dr);
+          if (dist < bestDist) {
+            bestDist = dist;
+            best = { col: col + dc, row: row + dr };
+          }
         }
       }
     }
-    return null;
+    return best;
   }
 }
 

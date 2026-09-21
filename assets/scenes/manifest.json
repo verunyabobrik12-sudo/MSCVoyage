@@ -9,9 +9,9 @@
                                 ]
              },
     "corridor":  {
-                     "imageScale":  1,
+                     "imageScale":  2,
                      "file":  "corridor_bg.png",
-                     "stub":  true,
+                     "stub":  false,
                      "sourceSize":  [
                                         848,
                                         1264
@@ -36,9 +36,9 @@
                                 ]
              },
     "cabin":  {
-                  "imageScale":  1,
+                  "imageScale":  2,
                   "file":  "cabin_bg.png",
-                  "stub":  true,
+                  "stub":  false,
                   "sourceSize":  [
                                      848,
                                      1264

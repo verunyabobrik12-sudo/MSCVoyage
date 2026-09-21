@@ -14,12 +14,14 @@ $outSprites = Join-Path $root "assets/sprites"
 New-Item -ItemType Directory -Force -Path $outScenes, $outSprites | Out-Null
 
 # ===================== ФОНЫ ЛОКАЦИЙ =====================
-# Ресторан/Бассейн/Рим ортографичны (без трапеции) — апскейл 2x (высота < 1500),
-# без обрезки каймы (на сэмплах пикселей по краям кайма не подтвердилась,
-# только у Каюты/Коридора). JSON-координаты остаются в системе исходника
+# Апскейл 2x (высота < 1500), без обрезки каймы (на сэмплах пикселей по краям
+# кайма не подтвердилась). JSON-координаты остаются в системе исходника
 # (848x1264), imageScale в manifest.json говорит движку, во сколько раз
 # готовая картинка больше — координаты в JSON умножать не нужно, это делает движок.
-$goodScenes = @("restaurant", "pool", "rome")
+# Каюта и Коридор — трапеция в исходнике (стены сужаются кверху), но по решению
+# от 2026-09-21 это признано некритичным: используем как есть, разметка (JSON)
+# просто повторяет реальную трапециевидную форму пола полигоном вместо прямоугольника.
+$goodScenes = @("restaurant", "pool", "rome", "cabin", "corridor")
 $manifest = @{}
 
 foreach ($name in $goodScenes) {
@@ -39,29 +41,6 @@ foreach ($name in $goodScenes) {
   $manifest[$name] = @{ file = "${name}_bg.png"; sourceSize = @($src.Width, $src.Height); imageScale = $scale; stub = $false }
   Write-Output "[bg]   $name -> ${w}x${h} (scale x$scale)"
   $g.Dispose(); $dst.Dispose(); $src.Dispose()
-}
-
-# Каюта/Коридор — трапеция в исходнике, нужна перегенерация. Временная заглушка
-# того же размера, чтобы остальной пайплайн (двери, переходы) не падал.
-foreach ($name in @("cabin", "corridor")) {
-  $srcPath = Join-Path $rawDir "scenes/$name.jfif"
-  $src = [System.Drawing.Image]::FromFile($srcPath)
-  $w = $src.Width; $h = $src.Height
-  $bmp = New-Object System.Drawing.Bitmap($w, $h)
-  $g = [System.Drawing.Graphics]::FromImage($bmp)
-  $g.Clear([System.Drawing.Color]::FromArgb(255, 214, 188, 152))
-  $font = New-Object System.Drawing.Font("Arial", 40, [System.Drawing.FontStyle]::Bold)
-  $brush = [System.Drawing.Brushes]::White
-  $sf = New-Object System.Drawing.StringFormat
-  $sf.Alignment = [System.Drawing.StringAlignment]::Center
-  $sf.LineAlignment = [System.Drawing.StringAlignment]::Center
-  $rectF = New-Object System.Drawing.RectangleF(40, 0, ($w - 80), $h)
-  $g.DrawString("ЗАГЛУШКА`n$name`nисходник в трапеции,`nтребуется перегенерация", $font, $brush, $rectF, $sf)
-  $dstPath = Join-Path $outScenes "${name}_bg.png"
-  $bmp.Save($dstPath, [System.Drawing.Imaging.ImageFormat]::Png)
-  $manifest[$name] = @{ file = "${name}_bg.png"; sourceSize = @($w, $h); imageScale = 1; stub = $true }
-  Write-Output "[bg]   $name -> STUB ${w}x${h}"
-  $g.Dispose(); $bmp.Dispose(); $src.Dispose()
 }
 
 # ===================== СПРАЙТ ГЕРОИНИ =====================

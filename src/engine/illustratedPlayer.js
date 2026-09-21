@@ -1,0 +1,112 @@
+// Героиня в иллюстрированных сценах: позиция в координатах сцены, спрайт-лист
+// 4 направления x 4 кадра (assets/sprites/hero_girl.png + .json), движение
+// клавиатурой/тапом-с-поиском-пути, коллизии через CollisionGrid.
+
+import { findScenePath } from './collisionGrid.js';
+
+const ANIM_FPS = 8;
+
+export class IllustratedPlayer {
+  constructor(x, y, sheetImage, meta) {
+    this.x = x;
+    this.y = y;
+    this.sheet = sheetImage;
+    this.meta = meta; // {frameWidth,frameHeight,feet:[x,y],directions:{down,left,right,up},framesPerRow}
+    this.dir = 'down';
+    this.animTime = 0;
+    this.moving = false;
+    this.path = null;
+    this.pathIndex = 0;
+  }
+
+  moveTo(tx, ty, grid) {
+    const path = findScenePath(grid, this.x, this.y, tx, ty);
+    if (path) {
+      this.path = path;
+      this.pathIndex = 0;
+    }
+    return !!path;
+  }
+
+  stop() {
+    this.path = null;
+  }
+
+  isFollowingPath() {
+    return !!this.path && this.pathIndex < this.path.length;
+  }
+
+  update(dt, input, grid, speed) {
+    let dx = 0;
+    let dy = 0;
+    const axis = input.getMoveAxis();
+    const keyboardActive = axis.x !== 0 || axis.y !== 0;
+
+    if (keyboardActive) {
+      this.path = null;
+      const len = Math.hypot(axis.x, axis.y) || 1;
+      dx = (axis.x / len) * speed * dt;
+      dy = (axis.y / len) * speed * dt;
+    } else if (this.isFollowingPath()) {
+      const target = this.path[this.pathIndex];
+      const diffX = target.x - this.x;
+      const diffY = target.y - this.y;
+      const dist = Math.hypot(diffX, diffY);
+      const step = speed * dt;
+      if (dist <= step || dist < 0.5) {
+        this.pathIndex++;
+        dx = diffX;
+        dy = diffY;
+        if (this.pathIndex >= this.path.length) this.path = null;
+      } else {
+        dx = (diffX / dist) * step;
+        dy = (diffY / dist) * step;
+      }
+    }
+
+    this.moving = dx !== 0 || dy !== 0;
+    if (this.moving) {
+      this._updateDirection(dx, dy);
+      this._tryMove(dx, dy, grid);
+      this.animTime += dt;
+    } else {
+      this.animTime = 0;
+    }
+  }
+
+  _updateDirection(dx, dy) {
+    if (Math.abs(dx) > Math.abs(dy)) {
+      this.dir = dx > 0 ? 'right' : 'left';
+    } else if (dy !== 0) {
+      this.dir = dy > 0 ? 'down' : 'up';
+    }
+  }
+
+  _tryMove(dx, dy, grid) {
+    // Раздельные оси — герой скользит вдоль препятствия, а не залипает.
+    if (dx !== 0 && grid.isWalkable(this.x + dx, this.y)) this.x += dx;
+    if (dy !== 0 && grid.isWalkable(this.x, this.y + dy)) this.y += dy;
+  }
+
+  _currentFrame() {
+    const row = this.meta.directions[this.dir];
+    const col = this.moving ? Math.floor(this.animTime * ANIM_FPS) % this.meta.framesPerRow : 0;
+    return { row, col };
+  }
+
+  /** toScreen(x,y) — единая функция перевода координат сцены в экранные. */
+  draw(ctx, toScreen, scale, heroScale) {
+    const { row, col } = this._currentFrame();
+    const fw = this.meta.frameWidth;
+    const fh = this.meta.frameHeight;
+    const sx = col * fw;
+    const sy = row * fh;
+    const screen = toScreen(this.x, this.y);
+    const totalScale = scale * heroScale;
+    const drawW = fw * totalScale;
+    const drawH = fh * totalScale;
+    const dx = screen.x - this.meta.feet[0] * totalScale;
+    const dy = screen.y - this.meta.feet[1] * totalScale;
+    ctx.drawImage(this.sheet, sx, sy, fw, fh, dx, dy, drawW, drawH);
+  }
+}

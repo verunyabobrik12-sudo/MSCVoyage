@@ -1,0 +1,4276 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>MSC Voyage — круизное путешествие</title>
+<style>
+  :root {
+    --bg-desktop: #1b2a33;
+    --frame-color: #12191f;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--bg-desktop);
+    overflow: hidden;
+    font-family: sans-serif;
+    touch-action: none;
+  }
+
+  #app {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* На десктопе игра показывается в рамке "телефона" по центру экрана. */
+  #phone-frame {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  #game-canvas {
+    background: #000;
+    display: block;
+    cursor: default;
+  }
+
+  /* Только у старого пиксель-артового движка — новые иллюстрированные сцены
+     рисуются в родном разрешении со сглаживанием, чёткие пиксели им не нужны. */
+  #game-canvas.pixelated {
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+  }
+
+  #mute-button {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 2px solid #12191f;
+    background: #fbe9c8;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Декоративная рамка "телефона" только на широких экранах (десктоп).
+     Высота — почти во весь экран, ширина считается от неё по пропорции игры
+     (320×480) и дополнительно ограничена шириной окна. */
+  @media (min-width: 700px) and (min-height: 500px) {
+    #phone-frame {
+      height: 95vh;
+      width: min(95vw, calc(95vh * 320 / 480));
+      border: 14px solid var(--frame-color);
+      border-radius: 36px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+  }
+</style>
+</head>
+<body>
+  <div id="app">
+    <div id="phone-frame">
+      <canvas id="game-canvas"></canvas>
+    </div>
+  </div>
+  <button id="mute-button" aria-label="Звук">🔊</button>
+
+  <script>
+"use strict";
+const __mod = {};
+
+__mod["art/palette.js"] = (function () {
+
+// Единая палитра игры (~40 цветов). Тёплая, насыщенная — в духе Catz (Gameloft).
+// Менять цвета всей игры — только здесь.
+
+const PALETTE = {
+  // Базовые нейтральные
+  ink: '#2b1d14',        // тёмная обводка контуров
+  inkSoft: '#4a3626',    // мягкая обводка/тень на светлом
+  white: '#fff6e6',
+  cream: '#fbe9c8',
+
+  // Дерево / пол / мебель
+  woodLight: '#e8b25c',
+  woodMid: '#c98a3a',
+  woodDark: '#8a5a24',
+  woodPlank: '#d99c46',
+
+  // Ковры/ткани тёплые
+  carpetRed: '#b23a34',
+  carpetRedDark: '#8a2a26',
+  fabricGold: '#e0a83e',
+  fabricBlue: '#3d6ea5',
+  fabricBlueDark: '#2b4f7a',
+
+  // Стены
+  wallCream: '#f2dcae',
+  wallCreamDark: '#dcc088',
+  wallBlue: '#a9c9d6',
+  wallBlueDark: '#7fa5b6',
+
+  // Море/небо/вода
+  seaDeep: '#1f6f8b',
+  seaMid: '#3a95ab',
+  seaLight: '#7fc4c9',
+  seaFoam: '#e8f7f3',
+  skyDay: '#bfe6f2',
+  skyHorizon: '#eaf6e0',
+  poolWater: '#4fb8c9',
+  poolWaterLight: '#8fe0e0',
+  poolWaterDark: '#2f8a9c',
+
+  // Кожа/персонажи
+  skinLight: '#eec19a',
+  skinMid: '#d99e6f',
+  hairBrown: '#5b3a24',
+  hairBlack: '#2b2018',
+  hairBlonde: '#dcb35c',
+
+  // Одежда
+  clothRed: '#c94f3f',
+  clothBlue: '#3f6fa8',
+  clothGreen: '#4f9a5c',
+  clothYellow: '#e0b23e',
+  clothWhite: '#f4ece0',
+  clothNavy: '#2c3f5e',
+
+  // Акценты/еда/растения
+  accentGold: '#e8b23e',
+  accentOrange: '#e0743e',
+  tomatoRed: '#c9432f',
+  leafGreen: '#5c9a4f',
+  leafDark: '#3d6e35',
+  cheeseYellow: '#eecb5c',
+  espressoBrown: '#3d281a',
+  creamCake: '#f2e0c0',
+
+  // Рим/камень
+  stoneLight: '#d8cdb8',
+  stoneMid: '#b8a988',
+  stoneDark: '#8c7d5e',
+  brickTerracotta: '#c9703f',
+  brickDark: '#a1552c',
+
+  // UI
+  uiPanel: '#fbe9c8',
+  uiPanelDark: '#e0c393',
+  uiBorder: '#8a5a24',
+  uiAccent: '#3d6ea5',
+  uiGold: '#e8b23e',
+  uiDanger: '#c9432f',
+  uiSuccess: '#4f9a5c',
+  uiShadow: 'rgba(43,29,20,0.35)',
+};
+
+// Быстрая палитра для теней: затемнение цвета на заданный процент.
+function shade(hex, percent) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  const r = Math.max(0, Math.min(255, ((n >> 16) & 0xff) * (1 - percent)));
+  const g = Math.max(0, Math.min(255, ((n >> 8) & 0xff) * (1 - percent)));
+  const b = Math.max(0, Math.min(255, (n & 0xff) * (1 - percent)));
+  return `rgb(${r | 0},${g | 0},${b | 0})`;
+}
+
+  return { PALETTE, shade };
+})();
+
+__mod["art/assets.js"] = (function () {
+const { PALETTE, shade } = __mod["art/palette.js"];
+// Слой процедурного пиксель-арта. Все спрайты рисуются прямоугольниками/фигурами
+// прямо на канвасе — картинок-файлов нет. Публичный интерфейс (Assets.drawXxx)
+// специально стабилен: когда появятся готовые PNG-атласы, реализацию внутри можно
+// заменить на ctx.drawImage(...), не трогая сцены, которые вызывают эти функции.
+
+
+
+function outlineRect(ctx, x, y, w, h, fill, outline = PALETTE.ink) {
+  ctx.fillStyle = outline;
+  ctx.fillRect(Math.round(x - 1), Math.round(y - 1), w + 2, h + 2);
+  ctx.fillStyle = fill;
+  ctx.fillRect(Math.round(x), Math.round(y), w, h);
+}
+
+function ellipseShadow(ctx, cx, cy, rx, ry) {
+  ctx.save();
+  ctx.fillStyle = PALETTE.uiShadow;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+const CHARACTER_PALETTES = {
+  girl: { skin: PALETTE.skinLight, hair: PALETTE.hairBrown, cloth: PALETTE.clothRed, clothDark: shade(PALETTE.clothRed, 0.25) },
+  boy: { skin: PALETTE.skinMid, hair: PALETTE.hairBlack, cloth: PALETTE.clothBlue, clothDark: shade(PALETTE.clothBlue, 0.25) },
+};
+
+const Assets = {
+  /**
+   * Персонаж 16×24 (условно), вид сверху под углом ¾. dir: 'up'|'down'|'left'|'right'.
+   * animTime — секунды с начала анимации, moving — идёт ли герой сейчас.
+   */
+  drawPlayer(ctx, character, x, y, dir, animTime, moving) {
+    const c = CHARACTER_PALETTES[character] || CHARACTER_PALETTES.girl;
+    const walkPhase = moving ? Math.sin(animTime * 10) : Math.sin(animTime * 2) * 0.3;
+    const legOffset = moving ? Math.round(walkPhase * 2) : 0;
+    const bob = moving ? Math.abs(Math.round(walkPhase * 1)) : (Math.sin(animTime * 2) > 0 ? 0 : 0);
+
+    const baseY = y - 20; // верх спрайта относительно "ног" в точке (x, y)
+
+    ellipseShadow(ctx, x, y + 1, 7, 3);
+
+    // Ноги
+    outlineRect(ctx, x - 4, baseY + 16 - bob, 3, 5 + legOffset, PALETTE.clothNavy);
+    outlineRect(ctx, x + 1, baseY + 16 - bob, 3, 5 - legOffset, PALETTE.clothNavy);
+
+    // Туловище
+    outlineRect(ctx, x - 5, baseY + 6 - bob, 10, 11, c.cloth);
+    ctx.fillStyle = c.clothDark;
+    ctx.fillRect(x - 5, baseY + 14 - bob, 10, 3);
+
+    // Руки (по бокам туловища)
+    const armSwing = moving ? Math.round(Math.sin(animTime * 10 + Math.PI) * 1.5) : 0;
+    outlineRect(ctx, x - 7, baseY + 8 - bob + armSwing, 2, 6, c.skin);
+    outlineRect(ctx, x + 5, baseY + 8 - bob - armSwing, 2, 6, c.skin);
+
+    // Голова
+    outlineRect(ctx, x - 4, baseY - 3 - bob, 8, 8, c.skin);
+
+    // Волосы и лицо зависят от направления
+    if (dir === 'up') {
+      ctx.fillStyle = c.hair;
+      ctx.fillRect(x - 4, baseY - 4 - bob, 8, 6);
+    } else {
+      ctx.fillStyle = c.hair;
+      ctx.fillRect(x - 4, baseY - 4 - bob, 8, 3);
+      // Глаза
+      ctx.fillStyle = PALETTE.ink;
+      if (dir === 'left') {
+        ctx.fillRect(x - 3, baseY - bob, 1, 1);
+      } else if (dir === 'right') {
+        ctx.fillRect(x + 2, baseY - bob, 1, 1);
+      } else {
+        ctx.fillRect(x - 2, baseY - bob, 1, 1);
+        ctx.fillRect(x + 1, baseY - bob, 1, 1);
+      }
+    }
+  },
+
+  /** Деревянный пол в тёплых тонах с доскообразным узором. */
+  drawFloorWood(ctx, x, y, w, h) {
+    ctx.fillStyle = PALETTE.woodMid;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = shade(PALETTE.woodMid, 0.2);
+    ctx.lineWidth = 1;
+    for (let py = y; py < y + h; py += 16) {
+      ctx.beginPath();
+      ctx.moveTo(x, py);
+      ctx.lineTo(x + w, py);
+      ctx.stroke();
+    }
+    for (let px = x; px < x + w; px += 32) {
+      const offset = (Math.floor((px - x) / 32) % 2) * 16;
+      for (let py = y + offset; py < y + h; py += 32) {
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(px, py + 16);
+        ctx.stroke();
+      }
+    }
+  },
+
+  drawCarpet(ctx, x, y, w, h) {
+    outlineRect(ctx, x, y, w, h, PALETTE.carpetRed);
+    ctx.strokeStyle = PALETTE.carpetRedDark;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 2, y + 2, w - 4, h - 4);
+  },
+
+  drawWall(ctx, x, y, w, h, color = PALETTE.wallCream) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = shade(color, 0.12);
+    ctx.fillRect(x, y + h - 3, w, 3);
+  },
+
+  drawDoorFrame(ctx, x, y, w, h, label) {
+    outlineRect(ctx, x, y, w, h, PALETTE.woodDark);
+    ctx.fillStyle = shade(PALETTE.woodDark, -0.15);
+    ctx.fillRect(x + 2, y + 2, w - 4, h - 4);
+    ctx.fillStyle = PALETTE.accentGold;
+    ctx.fillRect(x + w - 5, y + h / 2 - 1, 2, 2); // ручка
+  },
+
+  drawBed(ctx, x, y) {
+    // Каркас
+    outlineRect(ctx, x, y, 34, 48, PALETTE.woodDark);
+    // Матрас/бельё
+    outlineRect(ctx, x + 3, y + 3, 28, 42, PALETTE.clothWhite);
+    // Подушка
+    outlineRect(ctx, x + 6, y + 5, 22, 10, PALETTE.fabricBlue);
+    // Одеяло
+    ctx.fillStyle = PALETTE.fabricGold;
+    ctx.fillRect(x + 3, y + 18, 28, 27);
+    ctx.strokeStyle = shade(PALETTE.fabricGold, 0.2);
+    ctx.strokeRect(x + 3, y + 18, 28, 27);
+  },
+
+  drawNightstand(ctx, x, y) {
+    outlineRect(ctx, x, y, 16, 16, PALETTE.woodMid);
+    ctx.fillStyle = PALETTE.woodDark;
+    ctx.fillRect(x + 2, y + 6, 12, 1);
+    // Лампа
+    ctx.fillStyle = PALETTE.accentGold;
+    ctx.fillRect(x + 6, y - 6, 4, 6);
+    ctx.fillStyle = PALETTE.uiGold;
+    ctx.beginPath();
+    ctx.moveTo(x + 4, y - 6);
+    ctx.lineTo(x + 12, y - 6);
+    ctx.lineTo(x + 10, y - 10);
+    ctx.lineTo(x + 6, y - 10);
+    ctx.closePath();
+    ctx.fill();
+  },
+
+  drawDesk(ctx, x, y) {
+    outlineRect(ctx, x, y, 28, 16, PALETTE.woodLight);
+    ctx.fillStyle = shade(PALETTE.woodLight, 0.15);
+    ctx.fillRect(x + 2, y + 12, 24, 2);
+  },
+
+  /** Буклет/брошюра MSC на столе — горячая точка викторины. */
+  drawBrochure(ctx, x, y) {
+    outlineRect(ctx, x, y, 10, 7, PALETTE.clothWhite);
+    ctx.fillStyle = PALETTE.uiAccent;
+    ctx.fillRect(x + 1, y + 1, 8, 2);
+    ctx.fillStyle = PALETTE.accentGold;
+    ctx.fillRect(x + 1, y + 4, 4, 2);
+  },
+
+  drawWardrobe(ctx, x, y) {
+    outlineRect(ctx, x, y, 20, 40, PALETTE.woodDark);
+    ctx.strokeStyle = shade(PALETTE.woodDark, 0.2);
+    ctx.beginPath();
+    ctx.moveTo(x + 10, y);
+    ctx.lineTo(x + 10, y + 40);
+    ctx.stroke();
+    ctx.fillStyle = PALETTE.accentGold;
+    ctx.fillRect(x + 8, y + 18, 1, 3);
+    ctx.fillRect(x + 11, y + 18, 1, 3);
+  },
+
+  /** Круглый иллюминатор с анимированными волнами и небом. */
+  drawPorthole(ctx, x, y, r, time) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.fillStyle = PALETTE.skyDay;
+    ctx.fillRect(x - r, y - r, r * 2, r);
+    ctx.fillStyle = PALETTE.seaMid;
+    ctx.fillRect(x - r, y, r * 2, r);
+    ctx.strokeStyle = PALETTE.seaFoam;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      const wave = Math.sin(time * 2 + i * 1.3) * 2;
+      ctx.beginPath();
+      ctx.moveTo(x - r, y + 3 + i * 4 + wave);
+      ctx.lineTo(x + r, y + 5 + i * 4 - wave);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = PALETTE.woodDark;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 1, 0, Math.PI * 2);
+    ctx.stroke();
+  },
+
+  drawRug(ctx, x, y, w, h, color = PALETTE.fabricBlue) {
+    outlineRect(ctx, x, y, w, h, color);
+  },
+};
+
+  return { Assets };
+})();
+
+__mod["art/font.js"] = (function () {
+
+// Битовый пиксельный шрифт 5×7 с поддержкой кириллицы (заглавные буквы).
+// Внешние шрифты не используются — весь текст рисуется прямоугольниками по маске.
+// Текст всегда выводится заглавными буквами (это ограничение простого пиксельного
+// шрифта, характерное для ретро-игр вроде Catz).
+
+const GLYPH_W = 5;
+const GLYPH_H = 7;
+
+// Каждая маска — 7 строк по 5 символов, '#' = закрашенный пиксель.
+const GLYPHS = {
+  ' ': ['.....', '.....', '.....', '.....', '.....', '.....', '.....'],
+
+  '0': ['.###.', '#...#', '#..##', '#.#.#', '##..#', '#...#', '.###.'],
+  '1': ['..#..', '.##..', '..#..', '..#..', '..#..', '..#..', '.###.'],
+  '2': ['.###.', '#...#', '....#', '...#.', '..#..', '.#...', '#####'],
+  '3': ['.###.', '#...#', '....#', '..##.', '....#', '#...#', '.###.'],
+  '4': ['...#.', '..##.', '.#.#.', '#..#.', '#####', '...#.', '...#.'],
+  '5': ['#####', '#....', '####.', '....#', '....#', '#...#', '.###.'],
+  '6': ['..##.', '.#...', '#....', '####.', '#...#', '#...#', '.###.'],
+  '7': ['#####', '....#', '...#.', '..#..', '.#...', '.#...', '.#...'],
+  '8': ['.###.', '#...#', '#...#', '.###.', '#...#', '#...#', '.###.'],
+  '9': ['.###.', '#...#', '#...#', '.####', '....#', '...#.', '.##..'],
+
+  'А': ['.###.', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
+  'Б': ['#####', '#....', '####.', '#...#', '#...#', '#...#', '####.'],
+  'В': ['####.', '#...#', '#...#', '####.', '#...#', '#...#', '####.'],
+  'Г': ['#####', '#....', '#....', '#....', '#....', '#....', '#....'],
+  'Д': ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '#####'],
+  'Е': ['#####', '#....', '#....', '####.', '#....', '#....', '#####'],
+  'Ё': ['#.#..', '.....', '#####', '#....', '####.', '#....', '#####'],
+  'Ж': ['#.#.#', '#.#.#', '.###.', '..#..', '.###.', '#.#.#', '#.#.#'],
+  'З': ['.###.', '#...#', '....#', '..##.', '....#', '#...#', '.###.'],
+  'И': ['#...#', '#...#', '#..##', '#.#.#', '##..#', '#...#', '#...#'],
+  'Й': ['.#.#.', '#...#', '#..##', '#.#.#', '##..#', '#...#', '.....'],
+  'К': ['#...#', '#..#.', '#.#..', '##...', '#.#..', '#..#.', '#...#'],
+  'Л': ['..##.', '.#.#.', '.#.#.', '#..#.', '#..#.', '#...#', '#...#'],
+  'М': ['#...#', '##.##', '#.#.#', '#...#', '#...#', '#...#', '#...#'],
+  'Н': ['#...#', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
+  'О': ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
+  'П': ['#####', '#...#', '#...#', '#...#', '#...#', '#...#', '#...#'],
+  'Р': ['####.', '#...#', '#...#', '####.', '#....', '#....', '#....'],
+  'С': ['.####', '#....', '#....', '#....', '#....', '#....', '.####'],
+  'Т': ['#####', '..#..', '..#..', '..#..', '..#..', '..#..', '..#..'],
+  'У': ['#...#', '#...#', '.#.#.', '..#..', '..#..', '.#...', '#....'],
+  'Ф': ['..#..', '.###.', '#.#.#', '#.#.#', '.###.', '..#..', '..#..'],
+  'Х': ['#...#', '.#.#.', '..#..', '..#..', '..#..', '.#.#.', '#...#'],
+  'Ц': ['#...#', '#...#', '#...#', '#...#', '#...#', '#####', '....#'],
+  'Ч': ['#...#', '#...#', '#...#', '.####', '....#', '....#', '....#'],
+  'Ш': ['#.#.#', '#.#.#', '#.#.#', '#.#.#', '#.#.#', '#.#.#', '#####'],
+  'Щ': ['#.#.#', '#.#.#', '#.#.#', '#.#.#', '#.#.#', '#####', '....#'],
+  'Ъ': ['##...', '.#...', '.#...', '.#.##', '.##.#', '.#..#', '.###.'],
+  'Ы': ['#...#', '#...#', '#...#', '##..#', '#.#.#', '#.#.#', '##.##'],
+  'Ь': ['#....', '#....', '#....', '#.###', '#...#', '#...#', '.###.'],
+  'Э': ['####.', '....#', '....#', '..##.', '....#', '....#', '####.'],
+  'Ю': ['#.###', '#.#.#', '#.#.#', '#.#.#', '#.#.#', '#.#.#', '#.###'],
+  'Я': ['.###.', '#...#', '#...#', '.####', '..#.#', '.#..#', '#...#'],
+
+  '.': ['.....', '.....', '.....', '.....', '.....', '.....', '..#..'],
+  ',': ['.....', '.....', '.....', '.....', '.....', '..#..', '.#...'],
+  '!': ['..#..', '..#..', '..#..', '..#..', '..#..', '.....', '..#..'],
+  '?': ['.###.', '#...#', '....#', '..##.', '..#..', '.....', '..#..'],
+  ':': ['.....', '..#..', '.....', '.....', '..#..', '.....', '.....'],
+  ';': ['.....', '..#..', '.....', '.....', '..#..', '..#..', '.#...'],
+  '-': ['.....', '.....', '.....', '#####', '.....', '.....', '.....'],
+  '+': ['.....', '..#..', '..#..', '#####', '..#..', '..#..', '.....'],
+  '(': ['...#.', '..#..', '.#...', '.#...', '.#...', '..#..', '...#.'],
+  ')': ['.#...', '..#..', '...#.', '...#.', '...#.', '..#..', '.#...'],
+  '%': ['#...#', '....#', '...#.', '..#..', '.#...', '#....', '#...#'],
+  '«': ['.....', '.#.#.', '#.#.#', '.....', '.....', '.....', '.....'],
+  '»': ['.....', '.#.#.', '#.#.#', '.....', '.....', '.....', '.....'],
+  '/': ['....#', '...#.', '...#.', '..#..', '.#...', '.#...', '#....'],
+  '✕': ['#...#', '.#.#.', '..#..', '..#..', '..#..', '.#.#.', '#...#'],
+  '★': ['..#..', '.###.', '#####', '.###.', '#.#.#', '.....', '.....'],
+  '✓': ['....#', '....#', '...#.', '#..#.', '.##..', '..#..', '.....'],
+};
+
+// Латинский алфавит нужен для брендовых слов вроде "MSC" — коды символов у латиницы
+// и похожей на вид кириллицы разные (Cyrillic 'А' ≠ Latin 'A'), поэтому набор отдельный.
+const LATIN = {
+  A: ['.###.', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
+  B: ['####.', '#...#', '#...#', '####.', '#...#', '#...#', '####.'],
+  C: ['.####', '#....', '#....', '#....', '#....', '#....', '.####'],
+  D: ['####.', '#...#', '#...#', '#...#', '#...#', '#...#', '####.'],
+  E: ['#####', '#....', '#....', '####.', '#....', '#....', '#####'],
+  F: ['#####', '#....', '#....', '####.', '#....', '#....', '#....'],
+  G: ['.####', '#....', '#....', '#.###', '#...#', '#...#', '.####'],
+  H: ['#...#', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
+  I: ['.###.', '..#..', '..#..', '..#..', '..#..', '..#..', '.###.'],
+  J: ['....#', '....#', '....#', '....#', '#...#', '#...#', '.###.'],
+  K: ['#...#', '#..#.', '#.#..', '##...', '#.#..', '#..#.', '#...#'],
+  L: ['#....', '#....', '#....', '#....', '#....', '#....', '#####'],
+  M: ['#...#', '##.##', '#.#.#', '#...#', '#...#', '#...#', '#...#'],
+  N: ['#...#', '##..#', '#.#.#', '#..##', '#...#', '#...#', '#...#'],
+  O: ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
+  P: ['####.', '#...#', '#...#', '####.', '#....', '#....', '#....'],
+  Q: ['.###.', '#...#', '#...#', '#...#', '#.#.#', '#..#.', '.##.#'],
+  R: ['####.', '#...#', '#...#', '####.', '#.#..', '#..#.', '#...#'],
+  S: ['.####', '#....', '#....', '.###.', '....#', '....#', '####.'],
+  T: ['#####', '..#..', '..#..', '..#..', '..#..', '..#..', '..#..'],
+  U: ['#...#', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
+  V: ['#...#', '#...#', '#...#', '#...#', '#...#', '.#.#.', '..#..'],
+  W: ['#...#', '#...#', '#...#', '#.#.#', '#.#.#', '#.#.#', '.#.#.'],
+  X: ['#...#', '.#.#.', '..#..', '..#..', '..#..', '.#.#.', '#...#'],
+  Y: ['#...#', '#...#', '.#.#.', '..#..', '..#..', '..#..', '..#..'],
+  Z: ['#####', '....#', '...#.', '..#..', '.#...', '#....', '#####'],
+};
+
+// Длинное и короткое тире визуально можно рисовать как обычный дефис — так их
+// не придётся отдельно кодировать пиксель за пикселем.
+const DASH_ALIASES = new Set(['—', '–']);
+
+function getGlyph(ch) {
+  if (DASH_ALIASES.has(ch)) return GLYPHS['-'];
+  return GLYPHS[ch] || LATIN[ch] || null;
+}
+
+/**
+ * Рисует пиксельный текст на канвасе.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {string} text
+ * @param {number} x
+ * @param {number} y
+ * @param {{scale?:number, color?:string, spacing?:number, lineHeight?:number}} [opts]
+ */
+function drawText(ctx, text, x, y, opts = {}) {
+  const scale = opts.scale ?? 1;
+  const color = opts.color ?? '#2b1d14';
+  const spacing = opts.spacing ?? 1;
+  const lineHeight = opts.lineHeight ?? (GLYPH_H + 2);
+  const upper = text.toUpperCase();
+
+  ctx.save();
+  ctx.fillStyle = color;
+
+  let cursorX = x;
+  let cursorY = y;
+  for (const ch of upper) {
+    if (ch === '\n') {
+      cursorX = x;
+      cursorY += lineHeight * scale;
+      continue;
+    }
+    const glyph = getGlyph(ch);
+    if (glyph) {
+      for (let row = 0; row < GLYPH_H; row++) {
+        const line = glyph[row];
+        for (let col = 0; col < GLYPH_W; col++) {
+          if (line[col] === '#') {
+            ctx.fillRect(cursorX + col * scale, cursorY + row * scale, scale, scale);
+          }
+        }
+      }
+    }
+    cursorX += (GLYPH_W + spacing) * scale;
+  }
+  ctx.restore();
+}
+
+/** Ширина строки текста в пикселях при заданном масштабе (без переносов строк). */
+function measureText(text, scale = 1, spacing = 1) {
+  const len = [...text].length;
+  return len * (GLYPH_W + spacing) * scale - spacing * scale;
+}
+
+function wrapText(text, maxCharsPerLine) {
+  const words = text.split(' ');
+  const lines = [];
+  let current = '';
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length > maxCharsPerLine && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+const FONT_GLYPH_WIDTH = GLYPH_W;
+const FONT_GLYPH_HEIGHT = GLYPH_H;
+
+  return { drawText, measureText, wrapText, FONT_GLYPH_WIDTH, FONT_GLYPH_HEIGHT };
+})();
+
+__mod["data/config.js"] = (function () {
+
+// Все настраиваемые числа и параметры игры — в одном месте.
+// Правьте значения здесь, не трогая логику в src/engine и src/scenes.
+
+const CONFIG = {
+  // Логическое разрешение экрана (портрет), масштабируется целочисленно.
+  screen: { width: 320, height: 480 },
+
+  // Скорость передвижения персонажа, пикселей в секунду.
+  player: {
+    speed: 60,
+  },
+
+  // Новые иллюстрированные сцены (этап "готовые иллюстрации") — отдельные
+  // настройки, координаты в системе исходной картинки (848 шириной).
+  illustrated: {
+    playerSpeed: 160, // px/с
+    heroTargetHeight: 120, // целевая высота героя на экране (110-130 по ТЗ)
+    hitboxHalfW: 12,
+    hitboxHalfH: 6,
+  },
+
+  // Баллы — единственная валюта игры.
+  points: {
+    quizCorrectAnswer: 15, // баллов за каждый правильный ответ в викторине
+    quizPerfectBonus: 30, // бонус за 100% правильных ответов в викторине
+    minigamePointsPerScoreUnit: 1 / 5, // 5 игровых очков = 1 балл
+    minigameRecordBonus: 20, // бонус за личный рекорд в мини-игре
+    repeatMultiplier: 0.2, // повторное прохождение даёт 20% от полной награды
+  },
+
+  // Настройки звука.
+  audio: {
+    masterVolume: 0.5,
+  },
+
+  // Длительность затемнения при переходах между локациями, мс.
+  transitionMs: 400,
+
+  // Финальный экран — звания по итоговому счёту баллов.
+  ranks: [
+    { minScore: 0, title: 'Юнга' },
+    { minScore: 150, title: 'Матрос' },
+    { minScore: 350, title: 'Помощник капитана' },
+    { minScore: 600, title: 'Капитан' },
+  ],
+
+  // Контакты и промокод для финального экрана — правьте под актуальные данные.
+  contacts: {
+    company: 'ПАК ГРУПП', // TODO: проверить точное официальное название
+    phone: '+7 (000) 000-00-00', // TODO: указать реальный телефон
+    site: 'pac.ru', // TODO: проверить актуальный домен
+    social: '@pacgroup', // TODO: указать реальный аккаунт соцсети
+    promoCode: '', // TODO: указать промокод, если он есть; пусто — блок не показывается
+  },
+};
+
+  return { CONFIG };
+})();
+
+__mod["data/quizzes.js"] = (function () {
+
+// Викторины. Структура: QUIZZES[id] = { id, title, hotspot, questions: [...] }.
+// Каждый вопрос: { question, answers: string[], correctIndex, fact } — fact
+// показывается после ответа как короткий интересный факт.
+//
+// ВАЖНО: вопросы про MSC Cruises и Пак Групп — ЧЕРНОВИКИ. Отмечены построчно
+// `// TODO: проверить факты`. Актуальной информации о компаниях на момент написания
+// нет — перед публикацией игры проверьте цифры, даты и формулировки с компанией.
+// Вопросы про Италию и Рим опираются на общеизвестные, бесспорные факты.
+
+const QUIZZES = {
+  msc: {
+    id: 'msc',
+    title: 'Всё о MSC Cruises',
+    questions: [
+      {
+        // TODO: проверить факты
+        question: 'MSC Cruises — круизная компания какой страны?',
+        answers: ['Италии', 'Испании', 'Греции', 'Франции'],
+        correctIndex: 0,
+        fact: 'MSC Cruises входит в швейцарско-итальянскую группу MSC, штаб-квартира судоходной компании — в Женеве, а круизное подразделение тесно связано с Италией.',
+      },
+      {
+        // TODO: проверить факты
+        question: 'Как переводится аббревиатура MSC?',
+        answers: ['Mediterranean Shipping Company', 'Marine Ship Cruise', 'Maritime Service Center', 'Modern Sea Cruises'],
+        correctIndex: 0,
+        fact: 'MSC расшифровывается как Mediterranean Shipping Company — судоходная компания, из которой выросло круизное направление.',
+      },
+      {
+        // TODO: проверить факты
+        question: 'Что из перечисленного точно есть на борту крупных лайнеров MSC?',
+        answers: ['Открытые и крытые бассейны', 'Собственный аэропорт', 'Автомобильная парковка на 500 мест', 'Горнолыжный спуск'],
+        correctIndex: 0,
+        fact: 'На больших лайнерах MSC есть несколько бассейнов, аквапарки и зоны отдыха для разных возрастов.',
+      },
+      {
+        // TODO: проверить факты
+        question: 'В каютах и местах отдыха MSC Cruises пассажирам обычно предлагают:',
+        answers: ['Разные категории кают — от внутренних до люксов с балконом', 'Только четырёхместные каюты', 'Проживание в палатках на верхней палубе', 'Общие каюты на 20 человек'],
+        correctIndex: 0,
+        fact: 'Флот MSC предлагает широкий выбор кают: внутренние, с окном, с балконом и люксы — на любой бюджет и состав семьи.',
+      },
+      {
+        // TODO: проверить факты
+        question: 'Круизы MSC по Средиземному морю обычно заходят в порты:',
+        answers: ['Италии, Франции, Испании и других стран региона', 'Только один порт за весь круиз', 'Исключительно портов Северной Европы', 'Только российские порты'],
+        correctIndex: 0,
+        fact: 'Средиземноморские маршруты MSC обычно объединяют несколько стран — Италию, Францию, Испанию, Грецию и другие.',
+      },
+      {
+        // TODO: проверить факты
+        question: 'Что из этого — реальная возможность на борту современных лайнеров MSC?',
+        answers: ['Рестораны с разной кухней и шоу по вечерам', 'Обязательные ежедневные экзамены', 'Отсутствие развлечений для детей', 'Только одноразовое питание в день'],
+        correctIndex: 0,
+        fact: 'На борту работает несколько ресторанов и баров, а по вечерам — театральные и развлекательные шоу.',
+      },
+    ],
+  },
+};
+
+  return { QUIZZES };
+})();
+
+__mod["data/strings.ru.js"] = (function () {
+
+// Все тексты интерфейса — здесь. Правьте формулировки, не трогая код сцен.
+
+const STRINGS = {
+  title: {
+    name: 'MSC VOYAGE',
+    subtitle: 'Круизное путешествие',
+    play: 'Играть',
+    sound: 'Звук',
+    howToPlay: 'Как играть',
+  },
+
+  tutorial: {
+    step1: 'Коснитесь пола или экрана — герой пойдёт туда. На компьютере — стрелки или WASD.',
+    step2: 'Подходите к предметам с рамкой — там викторины и мини-игры.',
+    step3: 'За викторины и мини-игры начисляются баллы. Тратьте их в магазине на экскурсии по Риму.',
+    next: 'Далее',
+    start: 'Начать путешествие',
+  },
+
+  hud: {
+    postcards: 'Открытки',
+    shop: 'Магазин',
+    points: 'Баллы',
+    cruiseExpert: 'Знаток круизов',
+  },
+
+  doors: {
+    yes: 'Да',
+    no: 'Нет',
+    goTo: (label) => `Пойти: ${label}?`,
+  },
+
+  locations: {
+    cabin: 'Каюта',
+    corridor: 'Коридор',
+    restaurant: 'Ресторан',
+    pool: 'Бассейн',
+    rome: 'Рим',
+  },
+
+  common: {
+    close: '✕ Закрыть',
+    continue: 'Продолжить',
+    exit: 'Выйти',
+    play: 'Играть',
+    notNow: 'Не сейчас',
+    back: 'Вернуться',
+    again: 'Ещё раз',
+    buy: 'Купить',
+    bought: 'Куплено',
+  },
+};
+
+  return { STRINGS };
+})();
+
+__mod["engine/camera.js"] = (function () {
+
+// Камера следует за целью и не выходит за границы карты локации.
+
+class Camera {
+  constructor(screenW, screenH) {
+    this.screenW = screenW;
+    this.screenH = screenH;
+    this.x = 0;
+    this.y = 0;
+  }
+
+  follow(targetX, targetY, mapW, mapH) {
+    // Если локация меньше экрана по какой-то оси — центрируем её на этой оси,
+    // а не прижимаем к левому/верхнему краю (иначе вокруг маленькой комнаты
+    // остаётся пустота только с одной стороны).
+    const x = mapW <= this.screenW
+      ? (mapW - this.screenW) / 2
+      : Math.max(0, Math.min(targetX - this.screenW / 2, mapW - this.screenW));
+    const y = mapH <= this.screenH
+      ? (mapH - this.screenH) / 2
+      : Math.max(0, Math.min(targetY - this.screenH / 2, mapH - this.screenH));
+    this.x = Math.round(x);
+    this.y = Math.round(y);
+  }
+
+  toScreen(x, y) {
+    return { x: x - this.x, y: y - this.y };
+  }
+
+  toWorld(x, y) {
+    return { x: x + this.x, y: y + this.y };
+  }
+}
+
+  return { Camera };
+})();
+
+__mod["engine/polygon.js"] = (function () {
+
+// Геометрия сцены: точка-в-полигоне, точка-в-круге, точка-в-триггере.
+// Всё работает в координатах сцены (системе исходной картинки), не экрана.
+
+/** Точка внутри многоугольника (ray casting). points — [[x,y], ...]. */
+function pointInPolygon(px, py, points) {
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const xi = points[i][0], yi = points[i][1];
+    const xj = points[j][0], yj = points[j][1];
+    const intersect = (yi > py) !== (yj > py)
+      && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function pointInCircle(px, py, cx, cy, r) {
+  const dx = px - cx;
+  const dy = py - cy;
+  return dx * dx + dy * dy <= r * r;
+}
+
+/** blocker: {polygon:[[x,y],...]} или {circle:[cx,cy,r]}. */
+function pointInBlocker(px, py, blocker) {
+  if (blocker.circle) return pointInCircle(px, py, blocker.circle[0], blocker.circle[1], blocker.circle[2]);
+  if (blocker.polygon) return pointInPolygon(px, py, blocker.polygon);
+  return false;
+}
+
+/** trigger: {shape:'rect',x,y,w,h} или {shape:'circle',x,y,r}. */
+function pointInTrigger(px, py, trigger) {
+  if (trigger.shape === 'circle') return pointInCircle(px, py, trigger.x, trigger.y, trigger.r);
+  return px >= trigger.x && px <= trigger.x + trigger.w && py >= trigger.y && py <= trigger.y + trigger.h;
+}
+
+/** Ограничивающий прямоугольник полигона/блокера — для быстрых грубых проверок. */
+function boundingBox(points) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const [x, y] of points) {
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+  return { pointInPolygon, pointInCircle, pointInBlocker, pointInTrigger, boundingBox };
+})();
+
+__mod["engine/collisionGrid.js"] = (function () {
+const { pointInPolygon, pointInBlocker } = __mod["engine/polygon.js"];
+// Проходимость для иллюстрированных сцен: "запрещено всё, что не разрешено".
+// Итоговая маска = walkable минус blockers, с учётом эллиптического хитбокса
+// героя (раздутие препятствий на радиус хитбокса реализовано проверкой
+// нескольких точек хитбокса вместо геометрического офсета полигонов —
+// проще и достаточно точно при шаге сетки 8px).
+
+
+
+const HITBOX_HALF_W = 12;
+const HITBOX_HALF_H = 6;
+const GRID_STEP = 8;
+
+class CollisionGrid {
+  constructor(sceneData, opts = {}) {
+    this.sceneW = sceneData.size[0];
+    this.sceneH = sceneData.size[1];
+    this.step = opts.step || GRID_STEP;
+    this.halfW = opts.hitboxHalfW || HITBOX_HALF_W;
+    this.halfH = opts.hitboxHalfH || HITBOX_HALF_H;
+    this.walkablePolys = sceneData.walkable || [];
+    this.blockers = sceneData.blockers || [];
+    this.cols = Math.ceil(this.sceneW / this.step);
+    this.rows = Math.ceil(this.sceneH / this.step);
+    this.grid = new Uint8Array(this.cols * this.rows);
+    this._build();
+  }
+
+  _isPointFree(x, y) {
+    let inWalkable = false;
+    for (const poly of this.walkablePolys) {
+      if (pointInPolygon(x, y, poly)) { inWalkable = true; break; }
+    }
+    if (!inWalkable) return false;
+    for (const b of this.blockers) {
+      if (pointInBlocker(x, y, b)) return false;
+    }
+    return true;
+  }
+
+  /** Проходимость точки С УЧЁТОМ хитбокса героя (для движения/поиска пути). */
+  isWalkable(x, y) {
+    return this._isPointFree(x, y)
+      && this._isPointFree(x - this.halfW, y)
+      && this._isPointFree(x + this.halfW, y)
+      && this._isPointFree(x, y - this.halfH)
+      && this._isPointFree(x, y + this.halfH);
+  }
+
+  _build() {
+    for (let row = 0; row < this.rows; row++) {
+      for (let col = 0; col < this.cols; col++) {
+        const x = col * this.step + this.step / 2;
+        const y = row * this.step + this.step / 2;
+        this.grid[row * this.cols + col] = this.isWalkable(x, y) ? 1 : 0;
+      }
+    }
+  }
+
+  cellWalkable(col, row) {
+    if (col < 0 || row < 0 || col >= this.cols || row >= this.rows) return false;
+    return this.grid[row * this.cols + col] === 1;
+  }
+
+  toGrid(x, y) {
+    return { col: Math.floor(x / this.step), row: Math.floor(y / this.step) };
+  }
+
+  toWorld(col, row) {
+    return { x: col * this.step + this.step / 2, y: row * this.step + this.step / 2 };
+  }
+
+  /** Ближайшая проходимая клетка (расширяющееся кольцо) — для недостижимой цели. */
+  findNearestWalkable(col, row) {
+    const maxR = Math.max(this.cols, this.rows);
+    for (let r = 0; r <= maxR; r++) {
+      for (let dr = -r; dr <= r; dr++) {
+        for (let dc = -r; dc <= r; dc++) {
+          if (Math.max(Math.abs(dc), Math.abs(dr)) !== r) continue;
+          if (this.cellWalkable(col + dc, row + dr)) return { col: col + dc, row: row + dr };
+        }
+      }
+    }
+    return null;
+  }
+}
+
+/** A* по сетке с 8-связностью. Возвращает массив мировых точек-waypoint'ов либо null. */
+function findScenePath(grid, fromX, fromY, toX, toY) {
+  const start = grid.toGrid(fromX, fromY);
+  let goal = grid.toGrid(toX, toY);
+  let exactGoal = true; // цель проходима как есть — можно дойти до точных toX/toY
+
+  if (!grid.cellWalkable(start.col, start.row)) return null;
+  if (!grid.cellWalkable(goal.col, goal.row)) {
+    const alt = grid.findNearestWalkable(goal.col, goal.row);
+    if (!alt) return null;
+    goal = alt;
+    exactGoal = false; // цель заменена ближайшей доступной — НЕЛЬЗЯ довести до исходных toX/toY,
+    // иначе последний шаг уйдёт обратно в препятствие
+  }
+  if (start.col === goal.col && start.row === goal.row) {
+    return exactGoal ? [{ x: toX, y: toY }] : [grid.toWorld(goal.col, goal.row)];
+  }
+
+  const key = (c, r) => `${c},${r}`;
+  const neighbors = [
+    [1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1],
+    [1, 1, Math.SQRT2], [1, -1, Math.SQRT2], [-1, 1, Math.SQRT2], [-1, -1, Math.SQRT2],
+  ];
+
+  const gScore = new Map([[key(start.col, start.row), 0]]);
+  const cameFrom = new Map();
+  const open = [{ col: start.col, row: start.row, f: 0 }];
+  const closed = new Set();
+  const h = (c, r) => Math.hypot(c - goal.col, r - goal.row);
+
+  let iterations = 0;
+  const maxIterations = grid.cols * grid.rows;
+
+  while (open.length > 0 && iterations++ < maxIterations) {
+    open.sort((a, b) => a.f - b.f);
+    const cur = open.shift();
+    const curKey = key(cur.col, cur.row);
+    if (closed.has(curKey)) continue;
+    closed.add(curKey);
+
+    if (cur.col === goal.col && cur.row === goal.row) {
+      const path = [];
+      let ck = curKey;
+      while (ck) {
+        const [c, r] = ck.split(',').map(Number);
+        path.push(grid.toWorld(c, r));
+        ck = cameFrom.get(ck);
+      }
+      path.reverse();
+      if (path.length > 0 && exactGoal) path[path.length - 1] = { x: toX, y: toY };
+      return path;
+    }
+
+    for (const [dc, dr, cost] of neighbors) {
+      const nc = cur.col + dc;
+      const nr = cur.row + dr;
+      if (!grid.cellWalkable(nc, nr)) continue;
+      // не срезаем углы по диагонали впритык к препятствию
+      if (dc !== 0 && dr !== 0 && (!grid.cellWalkable(cur.col + dc, cur.row) || !grid.cellWalkable(cur.col, cur.row + dr))) continue;
+      const nKey = key(nc, nr);
+      if (closed.has(nKey)) continue;
+      const tentativeG = (gScore.get(curKey) ?? Infinity) + cost;
+      if (tentativeG < (gScore.get(nKey) ?? Infinity)) {
+        gScore.set(nKey, tentativeG);
+        cameFrom.set(nKey, curKey);
+        open.push({ col: nc, row: nr, f: tentativeG + h(nc, nr) });
+      }
+    }
+  }
+  return null;
+}
+
+  return { HITBOX_HALF_W, HITBOX_HALF_H, GRID_STEP, CollisionGrid, findScenePath };
+})();
+
+__mod["engine/ui.js"] = (function () {
+const { PALETTE, shade } = __mod["art/palette.js"];
+const { drawText, measureText } = __mod["art/font.js"];
+// Переиспользуемые примитивы интерфейса: панели и кнопки в пиксельном стиле игры.
+// "Immediate mode": рисуем и проверяем попадание тапа в одном месте вызова.
+
+
+
+
+/** Круглая панель с рамкой — фон диалогов, HUD-плашек и карточек. */
+function drawPanel(ctx, x, y, w, h, { radius = 6, fill = PALETTE.uiPanel, border = PALETTE.uiBorder } = {}) {
+  ctx.save();
+  ctx.fillStyle = shade(border, -0.1);
+  roundRectPath(ctx, x - 2, y - 2, w + 4, h + 4, radius + 1);
+  ctx.fill();
+  ctx.fillStyle = fill;
+  roundRectPath(ctx, x, y, w, h, radius);
+  ctx.fill();
+  ctx.restore();
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/**
+ * Кнопка с текстом. Возвращает свой хитбокс {x,y,w,h} — сохраните его и проверяйте
+ * hitTest(rect, tapPoint) при обработке тапа/клика.
+ */
+function drawButton(ctx, x, y, w, h, label, { active = true, accent = false } = {}) {
+  const fill = !active ? PALETTE.uiPanelDark : accent ? PALETTE.uiGold : PALETTE.uiPanel;
+  drawPanel(ctx, x, y, w, h, { fill, border: PALETTE.uiBorder, radius: 5 });
+  const textScale = 1;
+  const textW = measureText(label, textScale);
+  drawText(ctx, label, x + (w - textW) / 2, y + (h - 7) / 2, {
+    scale: textScale,
+    color: active ? PALETTE.ink : PALETTE.inkSoft,
+  });
+  return { x, y, w, h };
+}
+
+function hitTest(rect, point) {
+  if (!rect || !point) return false;
+  return point.x >= rect.x && point.x <= rect.x + rect.w && point.y >= rect.y && point.y <= rect.y + rect.h;
+}
+
+/** Полупрозрачная заливка на весь экран — фон модальных окон. */
+function drawScrim(ctx, w, h, alpha = 0.5) {
+  ctx.save();
+  ctx.fillStyle = `rgba(20,14,10,${alpha})`;
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
+  return { drawPanel, drawButton, hitTest, drawScrim };
+})();
+
+__mod["engine/dialogs.js"] = (function () {
+const { PALETTE } = __mod["art/palette.js"];
+const { drawText, measureText, wrapText } = __mod["art/font.js"];
+const { drawPanel, drawButton, drawScrim, hitTest } = __mod["engine/ui.js"];
+const { STRINGS } = __mod["data/strings.ru.js"];
+// Готовые диалоговые окна в стиле игры: табличка у двери и окно подтверждения.
+
+
+
+
+
+
+/** Пиксельная табличка над дверью: "Пойти: Ресторан?" + Да/Нет. */
+class DoorSign {
+  constructor(label, anchorX, anchorY) {
+    this.label = STRINGS.doors.goTo(label);
+    this.anchorX = anchorX;
+    this.anchorY = anchorY;
+    this.yesRect = null;
+    this.noRect = null;
+  }
+
+  draw(ctx) {
+    const textW = measureText(this.label, 1);
+    const w = Math.max(textW + 16, 90);
+    const h = 42;
+    const x = Math.round(this.anchorX - w / 2);
+    const y = Math.round(this.anchorY);
+
+    drawPanel(ctx, x, y, w, h);
+    drawText(ctx, this.label, x + (w - textW) / 2, y + 6, { scale: 1, color: PALETTE.ink });
+
+    const btnW = 34;
+    const btnH = 16;
+    const gap = 6;
+    const totalW = btnW * 2 + gap;
+    const startX = x + (w - totalW) / 2;
+    this.yesRect = drawButton(ctx, startX, y + h - btnH - 6, btnW, btnH, STRINGS.doors.yes, { accent: true });
+    this.noRect = drawButton(ctx, startX + btnW + gap, y + h - btnH - 6, btnW, btnH, STRINGS.doors.no);
+  }
+
+  /** @returns {'yes'|'no'|null} */
+  handleTap(point) {
+    if (hitTest(this.yesRect, point)) return 'yes';
+    if (hitTest(this.noRect, point)) return 'no';
+    return null;
+  }
+}
+
+/** Универсальное окно подтверждения: заголовок/текст + две кнопки. */
+class ConfirmDialog {
+  constructor({ title = '', message, confirmLabel, cancelLabel, screenW, screenH }) {
+    this.title = title;
+    this.message = message;
+    this.confirmLabel = confirmLabel;
+    this.cancelLabel = cancelLabel;
+    this.screenW = screenW;
+    this.screenH = screenH;
+    this.confirmRect = null;
+    this.cancelRect = null;
+  }
+
+  draw(ctx) {
+    drawScrim(ctx, this.screenW, this.screenH);
+
+    const lines = wrapText(this.message, 26);
+    const w = 180;
+    const lineH = 10;
+    const h = 70 + lines.length * lineH + (this.title ? 12 : 0);
+    const x = Math.round((this.screenW - w) / 2);
+    const y = Math.round((this.screenH - h) / 2);
+
+    drawPanel(ctx, x, y, w, h);
+    let cursorY = y + 10;
+    if (this.title) {
+      const titleW = measureText(this.title, 1);
+      drawText(ctx, this.title, x + (w - titleW) / 2, cursorY, { scale: 1, color: PALETTE.ink });
+      cursorY += 14;
+    }
+    for (const line of lines) {
+      const lineW = measureText(line, 1);
+      drawText(ctx, line, x + (w - lineW) / 2, cursorY, { scale: 1, color: PALETTE.inkSoft });
+      cursorY += lineH;
+    }
+
+    const btnW = 76;
+    const btnH = 20;
+    const gap = 8;
+    const totalW = btnW * 2 + gap;
+    const startX = x + (w - totalW) / 2;
+    const btnY = y + h - btnH - 10;
+    this.confirmRect = drawButton(ctx, startX, btnY, btnW, btnH, this.confirmLabel);
+    this.cancelRect = drawButton(ctx, startX + btnW + gap, btnY, btnW, btnH, this.cancelLabel, { accent: true });
+  }
+
+  /** @returns {'confirm'|'cancel'|null} */
+  handleTap(point) {
+    if (hitTest(this.confirmRect, point)) return 'confirm';
+    if (hitTest(this.cancelRect, point)) return 'cancel';
+    return null;
+  }
+}
+
+/** Стандартный диалог выхода из викторины/мини-игры без начисления баллов. */
+function createExitConfirmDialog(screenW, screenH) {
+  return new ConfirmDialog({
+    message: 'Баллы за неё не будут начислены',
+    title: 'Выйти?',
+    confirmLabel: STRINGS.common.continue,
+    cancelLabel: STRINGS.common.exit,
+    screenW,
+    screenH,
+  });
+}
+
+  return { DoorSign, ConfirmDialog, createExitConfirmDialog };
+})();
+
+__mod["engine/door.js"] = (function () {
+const { DoorSign } = __mod["engine/dialogs.js"];
+// Единый механизм дверей: триггерная зона у двери показывает табличку "Да/Нет",
+// подход/отход управляет повторным показом. Используется во всех локациях.
+
+
+
+class DoorManager {
+  /**
+   * @param {Array<{id:string, x:number, y:number, w:number, h:number, label:string,
+   *   signX:number, signY:number, target:string}>} doors
+   *   x,y,w,h — триггерная зона в мировых координатах (обычно перед дверью);
+   *   signX,signY — точка привязки таблички в мировых координатах.
+   */
+  constructor(doors) {
+    this.doors = doors;
+    this.dismissed = new Set();
+    this.activeDoor = null;
+    this.activeSign = null;
+  }
+
+  _isPlayerInZone(door, player) {
+    return (
+      player.x >= door.x &&
+      player.x <= door.x + door.w &&
+      player.y >= door.y &&
+      player.y <= door.y + door.h
+    );
+  }
+
+  /** @returns {string|null} id двери, в которую игрок вошёл ("target"), либо null. */
+  update(player, camera) {
+    let anyNear = false;
+
+    for (const door of this.doors) {
+      const inZone = this._isPlayerInZone(door, player);
+      if (!inZone) {
+        this.dismissed.delete(door.id);
+        if (this.activeDoor === door.id) {
+          this.activeDoor = null;
+          this.activeSign = null;
+        }
+        continue;
+      }
+      anyNear = true;
+      if (!this.dismissed.has(door.id) && !this.activeDoor) {
+        this.activeDoor = door.id;
+        const screenAnchor = camera.toScreen(door.signX, door.signY);
+        this.activeSign = new DoorSign(door.label, screenAnchor.x, screenAnchor.y);
+      }
+    }
+
+    if (!anyNear) {
+      this.activeDoor = null;
+      this.activeSign = null;
+    }
+
+    return null;
+  }
+
+  /** Перерисовать табличку активной двери (координаты экрана пересчитываются на update). */
+  draw(ctx, camera) {
+    if (!this.activeDoor || !this.activeSign) return;
+    const door = this.doors.find((d) => d.id === this.activeDoor);
+    const screenAnchor = camera.toScreen(door.signX, door.signY);
+    this.activeSign.anchorX = screenAnchor.x;
+    this.activeSign.anchorY = screenAnchor.y;
+    this.activeSign.draw(ctx);
+  }
+
+  /** @returns {string|null} target локации, если нажали "Да"; null иначе. */
+  handleTap(point) {
+    if (!this.activeSign) return null;
+    const action = this.activeSign.handleTap(point);
+    if (action === 'yes') {
+      const door = this.doors.find((d) => d.id === this.activeDoor);
+      this.dismissed.add(this.activeDoor);
+      this.activeDoor = null;
+      this.activeSign = null;
+      return door.target;
+    }
+    if (action === 'no') {
+      this.dismissed.add(this.activeDoor);
+      this.activeDoor = null;
+      this.activeSign = null;
+    }
+    return null;
+  }
+
+  isShowingSign() {
+    return !!this.activeSign;
+  }
+}
+
+  return { DoorManager };
+})();
+
+__mod["engine/hotspot.js"] = (function () {
+const { ConfirmDialog } = __mod["engine/dialogs.js"];
+const { hitTest } = __mod["engine/ui.js"];
+const { STRINGS } = __mod["data/strings.ru.js"];
+const { PALETTE } = __mod["art/palette.js"];
+const { drawText, measureText } = __mod["art/font.js"];
+// Интерактивные предметы локации (викторины, мини-игры, магазин).
+// Диалог "Играть/Не сейчас" открывается сам, как только герой оказывается рядом
+// с предметом — неважно, дошёл ли он туда стрелками/WASD или тапом-по-полу
+// издалека. Тап прямо по предмету (или по значку над ним) сразу запускает
+// подход, если герой ещё не рядом.
+
+
+
+
+
+
+
+const APPROACH_RADIUS = 22;
+const ICON_HIT_PAD = 30; // значок рисуется выше предмета — клик по нему тоже должен засчитываться
+
+// Иконка над предметом сообщает тип активности издалека, не только близко.
+const KIND_ICON = {
+  quiz: '?',
+  minigame: '★',
+  shop: '✓',
+};
+
+class HotspotManager {
+  /**
+   * @param {Array<{id:string, x:number, y:number, w:number, h:number, approachX:number,
+   *   approachY:number, title:string, description:string, isCompleted:()=>boolean}>} hotspots
+   */
+  constructor(hotspots) {
+    this.hotspots = hotspots;
+    this.dialog = null;
+    this.openId = null;
+    this.dismissedNearId = null; // не переоткрывать сразу же после "Не сейчас", пока герой не отойдёт
+  }
+
+  _center(h) {
+    return { x: h.x + h.w / 2, y: h.y + h.h / 2 };
+  }
+
+  _isNear(hotspot, player) {
+    const c = this._center(hotspot);
+    return Math.hypot(player.x - c.x, player.y - c.y) <= APPROACH_RADIUS;
+  }
+
+  /** Вызывать каждый кадр: открывает диалог, как только герой оказался рядом с предметом. */
+  update(player, screenW, screenH) {
+    if (this.dialog) return;
+
+    for (const hotspot of this.hotspots) {
+      const near = this._isNear(hotspot, player);
+      if (near && this.dismissedNearId !== hotspot.id) {
+        this._openPrompt(hotspot, screenW, screenH);
+        return;
+      }
+      if (!near && this.dismissedNearId === hotspot.id) {
+        this.dismissedNearId = null; // герой отошёл — в следующий раз диалог снова предложится
+      }
+    }
+  }
+
+  _openPrompt(hotspot, screenW, screenH) {
+    this.openId = hotspot.id;
+    this.dialog = new ConfirmDialog({
+      title: hotspot.title,
+      message: hotspot.description,
+      confirmLabel: STRINGS.common.play,
+      cancelLabel: STRINGS.common.notNow,
+      screenW,
+      screenH,
+    });
+  }
+
+  isDialogOpen() {
+    return !!this.dialog;
+  }
+
+  /**
+   * Обработать тап. Возвращает 'play' (запустить активность openId), 'closed' (диалог закрыт),
+   * 'pending' (герой пошёл к предмету — тап обработан, дальше решать нечего) или null
+   * (тап не задел ни диалог, ни предмет — вызывающий код может считать это кликом по полу).
+   */
+  handleTap(point, player, camera, screenW, screenH, tileMap) {
+    if (this.dialog) {
+      const action = this.dialog.handleTap(point);
+      if (action === 'confirm') {
+        this.dialog = null;
+        return 'play';
+      }
+      if (action === 'cancel') {
+        this.dialog = null;
+        this.dismissedNearId = this.openId;
+        this.openId = null;
+        return 'closed';
+      }
+      return 'pending'; // тап внутри модалки, но мимо кнопок — не должен уходить дальше на пол
+    }
+
+    for (const hotspot of this.hotspots) {
+      const topLeft = camera.toScreen(hotspot.x, hotspot.y);
+      // Зона клика включает и сам предмет, и пульсирующий значок над ним —
+      // визуально это одна "кнопка", хотя рисуются они раздельно.
+      const rect = {
+        x: topLeft.x,
+        y: topLeft.y - ICON_HIT_PAD,
+        w: hotspot.w,
+        h: hotspot.h + ICON_HIT_PAD,
+      };
+      if (hitTest(rect, point)) {
+        if (this._isNear(hotspot, player)) {
+          this._openPrompt(hotspot, screenW, screenH);
+        } else {
+          // Диалог сам откроется в update(), как только герой дойдёт и окажется рядом.
+          this.dismissedNearId = null;
+          const approach = hotspot.approachX != null
+            ? { x: hotspot.approachX, y: hotspot.approachY }
+            : this._center(hotspot);
+          player.moveTo(approach.x, approach.y, tileMap);
+        }
+        return 'pending';
+      }
+    }
+    return null;
+  }
+
+  getOpenHotspot() {
+    return this.hotspots.find((h) => h.id === this.openId) || null;
+  }
+
+  closeDialog() {
+    this.dialog = null;
+    this.openId = null;
+  }
+
+  draw(ctx, camera, time) {
+    for (const hotspot of this.hotspots) {
+      const screen = camera.toScreen(hotspot.x, hotspot.y);
+      const completed = hotspot.isCompleted?.();
+      this._drawHighlight(ctx, screen.x, screen.y, hotspot.w, hotspot.h, time, completed, hotspot.kind);
+    }
+    if (this.dialog) this.dialog.draw(ctx);
+  }
+
+  _drawHighlight(ctx, x, y, w, h, time, completed, kind) {
+    ctx.save();
+    const pulse = 0.5 + 0.5 * Math.sin(time * 4);
+    ctx.strokeStyle = completed ? PALETTE.uiSuccess : PALETTE.uiGold;
+    ctx.globalAlpha = completed ? 0.6 : 0.4 + pulse * 0.5;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - 2, y - 2, w + 4, h + 4);
+    ctx.restore();
+
+    // Крупный пульсирующий значок над предметом — виден издалека, не только вплотную.
+    const scale = 2;
+    const bob = Math.round(pulse * 2);
+    const cx = x + w / 2;
+    const iconY = y - 20 - bob;
+
+    if (completed) {
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = PALETTE.uiSuccess;
+      ctx.beginPath();
+      ctx.arc(cx, iconY + 6, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      drawText(ctx, '✓', cx - measureText('✓', scale) / 2, iconY, { scale, color: PALETTE.white });
+    } else {
+      const icon = KIND_ICON[kind] || '!';
+      ctx.save();
+      ctx.globalAlpha = 0.55 + pulse * 0.35;
+      ctx.fillStyle = PALETTE.uiDanger;
+      ctx.beginPath();
+      ctx.arc(cx, iconY + 6, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      drawText(ctx, icon, cx - measureText(icon, scale) / 2, iconY, { scale, color: PALETTE.white });
+    }
+  }
+}
+
+  return { HotspotManager };
+})();
+
+__mod["engine/illustratedPlayer.js"] = (function () {
+const { findScenePath } = __mod["engine/collisionGrid.js"];
+// Героиня в иллюстрированных сценах: позиция в координатах сцены, спрайт-лист
+// 4 направления x 4 кадра (assets/sprites/hero_girl.png + .json), движение
+// клавиатурой/тапом-с-поиском-пути, коллизии через CollisionGrid.
+
+
+
+const ANIM_FPS = 8;
+
+class IllustratedPlayer {
+  constructor(x, y, sheetImage, meta) {
+    this.x = x;
+    this.y = y;
+    this.sheet = sheetImage;
+    this.meta = meta; // {frameWidth,frameHeight,feet:[x,y],directions:{down,left,right,up},framesPerRow}
+    this.dir = 'down';
+    this.animTime = 0;
+    this.moving = false;
+    this.path = null;
+    this.pathIndex = 0;
+  }
+
+  moveTo(tx, ty, grid) {
+    const path = findScenePath(grid, this.x, this.y, tx, ty);
+    if (path) {
+      this.path = path;
+      this.pathIndex = 0;
+    }
+    return !!path;
+  }
+
+  stop() {
+    this.path = null;
+  }
+
+  isFollowingPath() {
+    return !!this.path && this.pathIndex < this.path.length;
+  }
+
+  update(dt, input, grid, speed) {
+    let dx = 0;
+    let dy = 0;
+    const axis = input.getMoveAxis();
+    const keyboardActive = axis.x !== 0 || axis.y !== 0;
+
+    if (keyboardActive) {
+      this.path = null;
+      const len = Math.hypot(axis.x, axis.y) || 1;
+      dx = (axis.x / len) * speed * dt;
+      dy = (axis.y / len) * speed * dt;
+    } else if (this.isFollowingPath()) {
+      const target = this.path[this.pathIndex];
+      const diffX = target.x - this.x;
+      const diffY = target.y - this.y;
+      const dist = Math.hypot(diffX, diffY);
+      const step = speed * dt;
+      if (dist <= step || dist < 0.5) {
+        this.pathIndex++;
+        dx = diffX;
+        dy = diffY;
+        if (this.pathIndex >= this.path.length) this.path = null;
+      } else {
+        dx = (diffX / dist) * step;
+        dy = (diffY / dist) * step;
+      }
+    }
+
+    this.moving = dx !== 0 || dy !== 0;
+    if (this.moving) {
+      this._updateDirection(dx, dy);
+      this._tryMove(dx, dy, grid);
+      this.animTime += dt;
+    } else {
+      this.animTime = 0;
+    }
+  }
+
+  _updateDirection(dx, dy) {
+    if (Math.abs(dx) > Math.abs(dy)) {
+      this.dir = dx > 0 ? 'right' : 'left';
+    } else if (dy !== 0) {
+      this.dir = dy > 0 ? 'down' : 'up';
+    }
+  }
+
+  _tryMove(dx, dy, grid) {
+    // Раздельные оси — герой скользит вдоль препятствия, а не залипает.
+    if (dx !== 0 && grid.isWalkable(this.x + dx, this.y)) this.x += dx;
+    if (dy !== 0 && grid.isWalkable(this.x, this.y + dy)) this.y += dy;
+  }
+
+  _currentFrame() {
+    const row = this.meta.directions[this.dir];
+    const col = this.moving ? Math.floor(this.animTime * ANIM_FPS) % this.meta.framesPerRow : 0;
+    return { row, col };
+  }
+
+  /** toScreen(x,y) — единая функция перевода координат сцены в экранные. */
+  draw(ctx, toScreen, scale, heroScale) {
+    const { row, col } = this._currentFrame();
+    const fw = this.meta.frameWidth;
+    const fh = this.meta.frameHeight;
+    const sx = col * fw;
+    const sy = row * fh;
+    const screen = toScreen(this.x, this.y);
+    const totalScale = scale * heroScale;
+    const drawW = fw * totalScale;
+    const drawH = fh * totalScale;
+    const dx = screen.x - this.meta.feet[0] * totalScale;
+    const dy = screen.y - this.meta.feet[1] * totalScale;
+    ctx.drawImage(this.sheet, sx, sy, fw, fh, dx, dy, drawW, drawH);
+  }
+}
+
+  return { IllustratedPlayer };
+})();
+
+__mod["ui/theme.js"] = (function () {
+
+// Единая тема временного интерфейса (раздел 8 спецификации). Следующий этап
+// расширит этот модуль — палитра и константы стиля собраны здесь, чтобы
+// не разбредались по компонентам.
+
+const THEME = {
+  panelFillTop: '#FFF3D6',
+  panelFillBottom: '#FFE6B0',
+  panelBorder: '#3B2414',
+  panelInnerTrim: '#C98A3A',
+  ribbonFill: '#3D6EA5',
+  ribbonText: '#FFFFFF',
+  buttonYes: '#4F9A5C',
+  buttonYesDark: '#357140',
+  buttonNo: '#E0743E',
+  buttonNoDark: '#B8522A',
+  textDark: '#3B2414',
+  textOnButton: '#FFFFFF',
+
+  hotspotColors: {
+    quiz: { light: '#4AA8E8', dark: '#2A78C8' },
+    minigame: { light: '#FFB13C', dark: '#F0701A' },
+    info: { light: '#5CD1C0', dark: '#2AA391' },
+    shop: { light: '#7ED957', dark: '#3FA535' },
+    door: { light: '#FFD35A', dark: '#E8A21C' },
+  },
+  hotspotCompleted: { light: '#7ED957', dark: '#3FA535' },
+
+  fontFamily: '"Nunito", sans-serif',
+  overlayFadeAlpha: 0.6, // прозрачность перекрытия (крона и т.п.), когда герой под ним
+};
+
+function loadThemeFont() {
+  if (document.getElementById('theme-font-face')) return;
+  const style = document.createElement('style');
+  style.id = 'theme-font-face';
+  style.textContent = `
+    @font-face {
+      font-family: 'Nunito';
+      src: url('assets/fonts/Nunito.ttf') format('truetype');
+      font-weight: 200 900;
+      font-display: swap;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+  return { THEME, loadThemeFont };
+})();
+
+__mod["ui/hotspotMarker.js"] = (function () {
+const { THEME } = __mod["ui/theme.js"];
+// Векторный значок-"пин" над хотспотом (раздел 7.2). Рисуется в экранных
+// координатах, но все размеры заданы в координатах сцены и домножаются на
+// текущий scale — значок остаётся пропорционален фону при любом размере окна.
+
+
+
+const BASE_SIZE = 56; // ~56px в системе сцены 848px, как в спецификации
+const BOB_AMPLITUDE = 6;
+const BOB_PERIOD = 1.2; // секунд
+
+/**
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} sx экранная X центра основания значка (marker, уже переведён через fitToScreen)
+ * @param {number} sy экранная Y
+ * @param {number} scale текущий fitScale сцены
+ * @param {{type:string, completed:boolean, time:number, near:boolean}} opts
+ */
+function drawHotspotMarker(ctx, sx, sy, scale, { type, completed, time, near }) {
+  const size = BASE_SIZE * scale * (near ? 1.15 : 1);
+  const bob = Math.sin((time / BOB_PERIOD) * Math.PI * 2) * BOB_AMPLITUDE * scale;
+  const pulse = 0.5 + 0.5 * Math.sin((time / BOB_PERIOD) * Math.PI * 2 * 1.3);
+
+  const colors = completed ? THEME.hotspotCompleted : (THEME.hotspotColors[type] || THEME.hotspotColors.info);
+  const r = size * 0.5;
+  const cx = sx;
+  const cy = sy - r - bob - size * 0.15; // приподнят над точкой крепления, хвостик указывает вниз
+
+  // мягкая тень на полу под значком (не двигается с покачиванием)
+  ctx.save();
+  ctx.globalAlpha = 0.28;
+  ctx.fillStyle = '#000000';
+  ctx.beginPath();
+  ctx.ellipse(sx, sy, r * 0.55, r * 0.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  if (!completed) {
+    // мерцающее тёплое кольцо вокруг зоны срабатывания
+    ctx.save();
+    ctx.globalAlpha = 0.25 + pulse * 0.25;
+    ctx.strokeStyle = colors.light;
+    ctx.lineWidth = 3 * scale;
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, r * (1.3 + pulse * 0.15), r * (0.5 + pulse * 0.06), 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // тело пина: капля с хвостиком вниз
+  ctx.save();
+  ctx.translate(cx, cy);
+  const tailLen = r * 0.9;
+  ctx.beginPath();
+  ctx.moveTo(-r, 0);
+  ctx.arc(0, 0, r, Math.PI, 0, false);
+  ctx.lineTo(r * 0.28, r * 0.35);
+  ctx.quadraticCurveTo(0, tailLen, -r * 0.28, r * 0.35);
+  ctx.closePath();
+
+  const grad = ctx.createLinearGradient(-r, -r, r, r);
+  grad.addColorStop(0, colors.light);
+  grad.addColorStop(1, colors.dark);
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.lineWidth = 4 * scale;
+  ctx.strokeStyle = '#3B2414';
+  ctx.stroke();
+
+  // блик слева сверху (свет всегда оттуда)
+  ctx.save();
+  ctx.clip();
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = '#FFFFFF';
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.35, -r * 0.4, r * 0.55, r * 0.32, -0.5, 0, Math.PI * 2);
+  ctx.fill();
+  // лёгкая внутренняя тень снизу
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = '#000000';
+  ctx.beginPath();
+  ctx.ellipse(r * 0.1, r * 0.55, r * 0.6, r * 0.35, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  ctx.restore();
+
+  // символ: текстовые глифы для безопасных ASCII-знаков, векторные фигуры
+  // для двери/магазина (шрифт может не содержать стрелку/монету).
+  ctx.save();
+  ctx.translate(cx, cy);
+  if (completed) {
+    drawTextSymbol(ctx, '✓', r);
+  } else if (type === 'door') {
+    drawArrowSymbol(ctx, r);
+  } else if (type === 'shop') {
+    drawCoinSymbol(ctx, r);
+  } else {
+    drawTextSymbol(ctx, SYMBOLS[type] || '?', r);
+  }
+  ctx.restore();
+
+  return { cx, cy, r };
+}
+
+function drawTextSymbol(ctx, symbol, r) {
+  ctx.font = `900 ${Math.round(r * 1.05)}px ${THEME.fontFamily}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(2, r * 0.16);
+  ctx.strokeStyle = '#3B2414';
+  ctx.strokeText(symbol, 0, r * 0.03);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText(symbol, 0, r * 0.03);
+}
+
+function drawArrowSymbol(ctx, r) {
+  const s = r * 0.55;
+  ctx.lineWidth = Math.max(2, r * 0.16);
+  ctx.strokeStyle = '#3B2414';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-s * 0.6, -s * 0.7);
+  ctx.lineTo(s * 0.5, 0);
+  ctx.lineTo(-s * 0.6, s * 0.7);
+  ctx.lineTo(-s * 0.2, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+
+function drawCoinSymbol(ctx, r) {
+  const s = r * 0.55;
+  ctx.lineWidth = Math.max(2, r * 0.14);
+  ctx.strokeStyle = '#3B2414';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.beginPath();
+  ctx.arc(0, 0, s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.font = `900 ${Math.round(s * 1.1)}px ${THEME.fontFamily}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = (THEME.hotspotColors.shop || THEME.hotspotColors.info).dark;
+  ctx.fillText('$', 0, s * 0.05);
+}
+
+const SYMBOLS = {
+  quiz: '?',
+  minigame: '!',
+  info: 'i',
+};
+
+  return { drawHotspotMarker };
+})();
+
+__mod["ui/components.js"] = (function () {
+const { THEME } = __mod["ui/theme.js"];
+// Переиспользуемые UI-примитивы нового интерфейса: кремовые панели, объёмные
+// кнопки, перенос текста по словам (по факту измеренной ширины — уже не
+// пиксельный шрифт фиксированной ширины). "Immediate mode": рисуем и
+// возвращаем хитбокс в одном вызове, как и раньше в ui.js.
+
+
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawPanel(ctx, x, y, w, h, { radius = 22 } = {}) {
+  ctx.save();
+  // тёмно-коричневая обводка
+  roundRectPath(ctx, x - 4, y - 4, w + 8, h + 8, radius + 4);
+  ctx.fillStyle = THEME.panelBorder;
+  ctx.fill();
+
+  // кремовый градиент
+  const grad = ctx.createLinearGradient(0, y, 0, y + h);
+  grad.addColorStop(0, THEME.panelFillTop);
+  grad.addColorStop(1, THEME.panelFillBottom);
+  roundRectPath(ctx, x, y, w, h, radius);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // золотисто-деревянная внутренняя кайма
+  roundRectPath(ctx, x + 6, y + 6, w - 12, h - 12, Math.max(4, radius - 8));
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = THEME.panelInnerTrim;
+  ctx.stroke();
+  ctx.restore();
+  return { x, y, w, h };
+}
+
+function drawRibbon(ctx, x, y, w, h, text, fontSize = 20) {
+  ctx.save();
+  roundRectPath(ctx, x, y, w, h, 10);
+  ctx.fillStyle = THEME.ribbonFill;
+  ctx.fill();
+  ctx.fillStyle = THEME.ribbonText;
+  ctx.font = `800 ${fontSize}px ${THEME.fontFamily}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x + w / 2, y + h / 2 + 1);
+  ctx.restore();
+}
+
+/**
+ * Объёмная кнопка. accent: 'yes' (зелёная) | 'no' (оранжевая) | нейтральная кремовая.
+ * Минимальный размер 44x44 CSS px обеспечивает вызывающий код.
+ */
+function drawButton(ctx, x, y, w, h, label, { accent = null, fontSize = 20 } = {}) {
+  ctx.save();
+  let fill = '#FBE9C8';
+  let fillDark = '#E0C393';
+  let textColor = THEME.textDark;
+  if (accent === 'yes') { fill = THEME.buttonYes; fillDark = THEME.buttonYesDark; textColor = '#FFFFFF'; }
+  if (accent === 'no') { fill = THEME.buttonNo; fillDark = THEME.buttonNoDark; textColor = '#FFFFFF'; }
+
+  const pressDepth = 4;
+  // тёмная "подложка" снизу — создаёт объём
+  roundRectPath(ctx, x, y + pressDepth, w, h, 12);
+  ctx.fillStyle = fillDark;
+  ctx.fill();
+  // верхняя грань кнопки
+  roundRectPath(ctx, x, y, w, h - pressDepth, 12);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = THEME.panelBorder;
+  roundRectPath(ctx, x, y, w, h - pressDepth, 12);
+  ctx.stroke();
+
+  ctx.font = `800 ${fontSize}px ${THEME.fontFamily}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = THEME.panelBorder;
+  ctx.lineJoin = 'round';
+  const cy = y + (h - pressDepth) / 2;
+  ctx.strokeText(label, x + w / 2, cy + 1);
+  ctx.fillStyle = textColor;
+  ctx.fillText(label, x + w / 2, cy + 1);
+  ctx.restore();
+  return { x, y, w, h };
+}
+
+function measureWrapped(ctx, text, maxWidth, fontSpec) {
+  ctx.save();
+  ctx.font = fontSpec;
+  const words = text.split(' ');
+  const lines = [];
+  let current = '';
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (ctx.measureText(candidate).width > maxWidth && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) lines.push(current);
+  ctx.restore();
+  return lines;
+}
+
+function hitTest(rect, point) {
+  if (!rect || !point) return false;
+  return point.x >= rect.x && point.x <= rect.x + rect.w && point.y >= rect.y && point.y <= rect.y + rect.h;
+}
+
+/** Масштаб для "pop"-появления окна: 0.8 -> 1.05 -> 1.0 за duration мс. */
+function popScale(elapsedMs, duration = 250) {
+  const t = Math.min(1, elapsedMs / duration);
+  if (t >= 1) return 1;
+  // безье-подобная кривая с небольшим перелётом за 1.0
+  if (t < 0.7) {
+    const k = t / 0.7;
+    return 0.8 + k * 0.25; // 0.8 -> 1.05
+  }
+  const k = (t - 0.7) / 0.3;
+  return 1.05 - k * 0.05; // 1.05 -> 1.0
+}
+
+  return { drawPanel, drawRibbon, drawButton, measureWrapped, hitTest, popScale };
+})();
+
+__mod["ui/dialogs.js"] = (function () {
+const { drawPanel, drawRibbon, drawButton, measureWrapped, hitTest, popScale } = __mod["ui/components.js"];
+const { THEME } = __mod["ui/theme.js"];
+// Окна "Да/Нет" и инфо-облачко для иллюстрированных сцен — новый стиль
+// (раздел 8). Появляются с pop-эффектом. Работают в ЭКРАННЫХ координатах
+// канваса (полноразмерного, не логического) — так минимальный размер кнопки
+// 44x44 CSS px гарантирован независимо от масштаба сцены.
+
+
+
+
+class ConfirmDialog {
+  constructor({ title, message, yesLabel = 'Да', noLabel = 'Нет' }) {
+    this.title = title;
+    this.message = message;
+    this.yesLabel = yesLabel;
+    this.noLabel = noLabel;
+    this.elapsed = 0;
+    this.yesRect = null;
+    this.noRect = null;
+  }
+
+  update(dt) {
+    this.elapsed += dt * 1000;
+  }
+
+  draw(ctx, canvasW, canvasH) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(20,14,10,0.45)';
+    ctx.fillRect(0, 0, canvasW, canvasH);
+
+    const scale = popScale(this.elapsed);
+    const w = Math.min(420, canvasW * 0.82);
+    const lines = measureWrapped(ctx, this.message, w - 60, `600 18px ${THEME.fontFamily}`);
+    const h = 96 + lines.length * 26;
+    const cx = canvasW / 2;
+    const cy = canvasH / 2;
+
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+    ctx.translate(-w / 2, -h / 2);
+
+    drawPanel(ctx, 0, 0, w, h);
+    if (this.title) drawRibbon(ctx, w / 2 - 110, -14, 220, 36, this.title, 18);
+
+    ctx.fillStyle = THEME.textDark;
+    ctx.font = `600 18px ${THEME.fontFamily}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    let ly = 46;
+    for (const line of lines) {
+      ctx.fillText(line, w / 2, ly);
+      ly += 26;
+    }
+
+    const btnW = Math.max(96, (w - 60) / 2);
+    const btnH = 48;
+    const gap = 16;
+    const totalW = btnW * 2 + gap;
+    const bx = (w - totalW) / 2;
+    const by = h - btnH - 18;
+    const yesLocal = drawButton(ctx, bx, by, btnW, btnH, this.yesLabel, { accent: 'yes' });
+    const noLocal = drawButton(ctx, bx + btnW + gap, by, btnW, btnH, this.noLabel, { accent: 'no' });
+
+    // сохраняем хитбоксы в ЭКРАННЫХ координатах (учитывая translate/scale выше)
+    this.yesRect = this._toScreenRect(yesLocal, cx, cy, scale, w, h);
+    this.noRect = this._toScreenRect(noLocal, cx, cy, scale, w, h);
+
+    ctx.restore();
+  }
+
+  _toScreenRect(local, cx, cy, scale, w, h) {
+    const x = cx - (w / 2) * scale + local.x * scale;
+    const y = cy - (h / 2) * scale + local.y * scale;
+    return { x, y, w: local.w * scale, h: local.h * scale };
+  }
+
+  /** @returns {'yes'|'no'|null} */
+  handleTap(point) {
+    if (this.elapsed < 120) return null; // не ловить клик, которым диалог только что открыли
+    if (hitTest(this.yesRect, point)) return 'yes';
+    if (hitTest(this.noRect, point)) return 'no';
+    return null;
+  }
+}
+
+/** Информационное облачко с фактом — без кнопок, закрывается тапом или по таймеру. */
+class InfoBubble {
+  constructor({ title, fact }, durationMs = 4000) {
+    this.title = title;
+    this.fact = fact;
+    this.duration = durationMs;
+    this.elapsed = 0;
+  }
+
+  update(dt) {
+    this.elapsed += dt * 1000;
+  }
+
+  isExpired() {
+    return this.elapsed >= this.duration;
+  }
+
+  draw(ctx, canvasW, canvasH) {
+    const scale = popScale(this.elapsed);
+    const fadeOut = this.elapsed > this.duration - 400 ? Math.max(0, (this.duration - this.elapsed) / 400) : 1;
+    const w = Math.min(360, canvasW * 0.78);
+    const lines = measureWrapped(ctx, this.fact, w - 56, `600 16px ${THEME.fontFamily}`);
+    const h = 70 + lines.length * 22;
+    const cx = canvasW / 2;
+    const cy = canvasH * 0.28;
+
+    ctx.save();
+    ctx.globalAlpha = fadeOut;
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+    ctx.translate(-w / 2, -h / 2);
+    drawPanel(ctx, 0, 0, w, h, { radius: 18 });
+    if (this.title) drawRibbon(ctx, w / 2 - 90, -14, 180, 32, this.title, 16);
+    ctx.fillStyle = THEME.textDark;
+    ctx.font = `600 16px ${THEME.fontFamily}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    let ly = 42;
+    for (const line of lines) {
+      ctx.fillText(line, w / 2, ly);
+      ly += 22;
+    }
+    ctx.restore();
+  }
+}
+
+  return { ConfirmDialog, InfoBubble };
+})();
+
+__mod["engine/storage.js"] = (function () {
+
+// Обёртка над localStorage: хранит весь прогресс игрока одним объектом.
+
+const STORAGE_KEY = 'mscvoyage_save_v1';
+
+function defaultState() {
+  return {
+    character: null, // 'girl' | 'boy'
+    points: 0,
+    muted: false,
+    completedQuizzes: {}, // { quizId: true }
+    completedMinigames: {}, // { gameId: { best: number, playedOnce: true } }
+    postcards: {}, // { postcardId: true }
+    purchasedExcursions: {}, // { excursionId: true }
+    tutorialSeen: false,
+  };
+}
+
+let state = load();
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultState();
+    return { ...defaultState(), ...JSON.parse(raw) };
+  } catch (e) {
+    console.warn('Не удалось прочитать сохранение, начинаем заново', e);
+    return defaultState();
+  }
+}
+
+function save() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.warn('Не удалось сохранить прогресс', e);
+  }
+}
+
+const Storage = {
+  get() {
+    return state;
+  },
+  set(patch) {
+    state = { ...state, ...patch };
+    save();
+  },
+  addPoints(amount) {
+    state.points = Math.max(0, state.points + amount);
+    save();
+    return state.points;
+  },
+  markQuizCompleted(quizId) {
+    const wasCompleted = !!state.completedQuizzes[quizId];
+    state.completedQuizzes = { ...state.completedQuizzes, [quizId]: true };
+    save();
+    return wasCompleted;
+  },
+  isQuizCompleted(quizId) {
+    return !!state.completedQuizzes[quizId];
+  },
+  markMinigamePlayed(gameId, score) {
+    const prev = state.completedMinigames[gameId];
+    const wasPlayed = !!prev;
+    const best = prev ? Math.max(prev.best, score) : score;
+    const isRecord = !prev || score > prev.best;
+    state.completedMinigames = { ...state.completedMinigames, [gameId]: { best, playedOnce: true } };
+    save();
+    return { wasPlayed, isRecord };
+  },
+  unlockPostcard(postcardId) {
+    if (state.postcards[postcardId]) return false;
+    state.postcards = { ...state.postcards, [postcardId]: true };
+    save();
+    return true;
+  },
+  purchaseExcursion(excursionId) {
+    state.purchasedExcursions = { ...state.purchasedExcursions, [excursionId]: true };
+    save();
+  },
+  reset() {
+    state = defaultState();
+    save();
+  },
+};
+
+  return { Storage };
+})();
+
+__mod["engine/sound.js"] = (function () {
+const { CONFIG } = __mod["data/config.js"];
+const { Storage } = __mod["engine/storage.js"];
+// Процедурный звук через Web Audio API. Без аудиофайлов.
+// AudioContext создаётся только после первого касания/клика (требование браузеров).
+
+
+
+
+let ctx = null;
+let masterGain = null;
+let musicNodes = [];
+
+function ensureContext() {
+  if (ctx) return ctx;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = ctx.createGain();
+  masterGain.gain.value = Storage.get().muted ? 0 : CONFIG.audio.masterVolume;
+  masterGain.connect(ctx.destination);
+  return ctx;
+}
+
+const Sound = {
+  /** Вызывать по первому пользовательскому жесту (тап/клик/клавиша). */
+  unlock() {
+    ensureContext();
+    if (ctx.state === 'suspended') ctx.resume();
+  },
+
+  isMuted() {
+    return Storage.get().muted;
+  },
+
+  toggleMute() {
+    const muted = !Storage.get().muted;
+    Storage.set({ muted });
+    if (masterGain) masterGain.gain.value = muted ? 0 : CONFIG.audio.masterVolume;
+    return muted;
+  },
+
+  /** Короткий 8-битный писк: клик, шаг, успех, ошибка и т.д. */
+  beep({ freq = 440, duration = 0.08, type = 'square', volume = 0.25, slideTo = null } = {}) {
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, ctx.currentTime + duration);
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain).connect(masterGain);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  },
+
+  click() {
+    this.beep({ freq: 520, duration: 0.05, type: 'square', volume: 0.2 });
+  },
+  step() {
+    this.beep({ freq: 220, duration: 0.03, type: 'square', volume: 0.08 });
+  },
+  correct() {
+    this.beep({ freq: 660, duration: 0.12, type: 'square', volume: 0.25, slideTo: 990 });
+  },
+  wrong() {
+    this.beep({ freq: 200, duration: 0.18, type: 'sawtooth', volume: 0.2, slideTo: 100 });
+  },
+  points() {
+    this.beep({ freq: 880, duration: 0.1, type: 'triangle', volume: 0.2, slideTo: 1200 });
+  },
+  doorOpen() {
+    this.beep({ freq: 300, duration: 0.15, type: 'sine', volume: 0.2, slideTo: 500 });
+  },
+  bell() {
+    this.beep({ freq: 880, duration: 0.2, type: 'sine', volume: 0.22, slideTo: 1320 });
+  },
+
+  /** Простая зацикленная мелодия локации: массив нот (Гц) и общий темп. */
+  playLoop(notes, tempoMs = 260) {
+    this.stopLoop();
+    if (!ctx) return;
+    let i = 0;
+    const id = setInterval(() => {
+      const note = notes[i % notes.length];
+      if (note > 0) this.beep({ freq: note, duration: tempoMs / 1000 * 0.8, type: 'triangle', volume: 0.06 });
+      i++;
+    }, tempoMs);
+    musicNodes.push(id);
+  },
+  stopLoop() {
+    musicNodes.forEach((id) => clearInterval(id));
+    musicNodes = [];
+  },
+};
+
+  return { Sound };
+})();
+
+__mod["engine/illustratedScene.js"] = (function () {
+const { CollisionGrid } = __mod["engine/collisionGrid.js"];
+const { pointInTrigger, pointInPolygon } = __mod["engine/polygon.js"];
+const { IllustratedPlayer } = __mod["engine/illustratedPlayer.js"];
+const { drawHotspotMarker } = __mod["ui/hotspotMarker.js"];
+const { ConfirmDialog, InfoBubble } = __mod["ui/dialogs.js"];
+const { THEME } = __mod["ui/theme.js"];
+const { Sound } = __mod["engine/sound.js"];
+const { CONFIG } = __mod["data/config.js"];
+// Сцена на готовой иллюстрации: фон + коллизии по полигонам + перекрытия +
+// горячие точки, которые срабатывают сами при входе в зону. Единая функция
+// перевода координат (sceneToScreen/screenToScene) используется для ВСЕГО:
+// фона, героя, перекрытий, значков, попадания тапа и режима отладки F2.
+
+
+
+
+
+
+
+
+
+
+const ENTRY_GUARD_MS = 1500;
+const DISMISS_MARGIN = 30;
+const MARKER_TAP_RADIUS = 46; // в координатах сцены — тап рядом со значком подводит героя
+
+class IllustratedScene {
+  constructor({ game, sceneData, bgImage, heroSheet, heroMeta }) {
+    this.game = game;
+    this.data = sceneData;
+    this.bgImage = bgImage;
+    this.heroSheet = heroSheet;
+    this.heroMeta = heroMeta;
+    this.grid = new CollisionGrid(sceneData, {
+      hitboxHalfW: CONFIG.illustrated.hitboxHalfW,
+      hitboxHalfH: CONFIG.illustrated.hitboxHalfH,
+    });
+    this.heroScale = CONFIG.illustrated.heroTargetHeight / heroMeta.frameHeight;
+
+    this.time = 0;
+    this.lastDt = 1 / 60;
+    this.player = null;
+    this.dialog = null;
+    this.dialogItem = null;
+    this.infoBubble = null;
+    this.shownInfoIds = new Set();
+    this.dismissedIds = new Set();
+    this.entryGuardTimer = ENTRY_GUARD_MS;
+    this.entryDoorId = null;
+    this.overlayAlpha = {};
+    this.transform = { scale: 1, offsetX: 0, offsetY: 0 };
+
+    this.debugMode = false;
+    this.debugMaskView = false; // клавиша M
+    this.debugOverlayOnly = false; // клавиша T
+    this.lastCursorScene = null;
+
+    this.sceneToScreen = this.sceneToScreen.bind(this);
+  }
+
+  enter(spawnPoint, entryDoorId = null) {
+    const [sx, sy] = spawnPoint || this.data.spawn;
+    this.player = new IllustratedPlayer(sx, sy, this.heroSheet, this.heroMeta);
+    this.entryGuardTimer = ENTRY_GUARD_MS;
+    this.entryDoorId = entryDoorId;
+    this.shownInfoIds.clear();
+    this.dismissedIds.clear();
+    this.dialog = null;
+    this.dialogItem = null;
+    this.infoBubble = null;
+  }
+
+  setTransform(scale, offsetX, offsetY) {
+    this.transform = { scale, offsetX, offsetY };
+  }
+
+  sceneToScreen(x, y) {
+    return {
+      x: x * this.transform.scale + this.transform.offsetX,
+      y: y * this.transform.scale + this.transform.offsetY,
+    };
+  }
+
+  screenToScene(x, y) {
+    return {
+      x: (x - this.transform.offsetX) / this.transform.scale,
+      y: (y - this.transform.offsetY) / this.transform.scale,
+    };
+  }
+
+  update(dt, input) {
+    this.time += dt;
+    this.lastDt = dt;
+    if (this.entryGuardTimer > 0) this.entryGuardTimer -= dt * 1000;
+
+    if (input.consumeKeyPress('F2')) this.debugMode = !this.debugMode;
+    if (this.debugMode) {
+      if (input.consumeKeyPress('KeyM')) this.debugMaskView = !this.debugMaskView;
+      if (input.consumeKeyPress('KeyT')) this.debugOverlayOnly = !this.debugOverlayOnly;
+    }
+
+    if (this.dialog) {
+      this.dialog.update(dt);
+    } else if (this.infoBubble) {
+      this.infoBubble.update(dt);
+      if (this.infoBubble.isExpired()) this.infoBubble = null;
+    } else {
+      this.player.update(dt, input, this.grid, CONFIG.illustrated.playerSpeed);
+      this._checkTriggers();
+    }
+
+    const tap = input.consumeTap();
+    if (tap) this._handleTap(tap);
+
+    if (input.isCancelPressed()) {
+      if (this.dialog) { this.dialog = null; this.dialogItem = null; }
+      else if (this.infoBubble) this.infoBubble = null;
+    }
+  }
+
+  _allTriggerables() {
+    const hs = this.data.hotspots.map((h) => ({ ...h, kind: 'hotspot' }));
+    const doors = this.data.doors.map((d) => ({ ...d, kind: 'door', type: 'door' }));
+    return [...hs, ...doors];
+  }
+
+  _expandTrigger(trigger, margin) {
+    if (trigger.shape === 'circle') return { shape: 'circle', x: trigger.x, y: trigger.y, r: trigger.r + margin };
+    return { shape: 'rect', x: trigger.x - margin, y: trigger.y - margin, w: trigger.w + margin * 2, h: trigger.h + margin * 2 };
+  }
+
+  _checkTriggers() {
+    const px = this.player.x;
+    const py = this.player.y;
+    let nearest = null;
+    let nearestDist = Infinity;
+
+    for (const item of this._allTriggerables()) {
+      if (item.kind === 'door' && item.id === this.entryDoorId && this.entryGuardTimer > 0) continue;
+      if (this.dismissedIds.has(item.id)) {
+        if (!pointInTrigger(px, py, this._expandTrigger(item.trigger, DISMISS_MARGIN))) {
+          this.dismissedIds.delete(item.id);
+        }
+        continue;
+      }
+      if (item.kind === 'hotspot' && item.type === 'info' && this.shownInfoIds.has(item.id)) continue;
+      if (pointInTrigger(px, py, item.trigger)) {
+        const mx = item.marker[0];
+        const my = item.marker[1];
+        const d = Math.hypot(px - mx, py - my);
+        if (d < nearestDist) { nearest = item; nearestDist = d; }
+      }
+    }
+    if (nearest) this._fireTrigger(nearest);
+  }
+
+  _fireTrigger(item) {
+    this.player.stop();
+    Sound.bell();
+    if (item.kind === 'door') {
+      this.dialog = new ConfirmDialog({ message: item.label });
+      this.dialogItem = item;
+      return;
+    }
+    if (item.type === 'info') {
+      this.shownInfoIds.add(item.id);
+      this.infoBubble = new InfoBubble({ title: item.label, fact: item.fact });
+      return;
+    }
+    this.dialog = new ConfirmDialog({ title: item.label, message: item.description });
+    this.dialogItem = item;
+  }
+
+  _handleTap(screenPoint) {
+    if (this.dialog) {
+      const action = this.dialog.handleTap(screenPoint);
+      if (action === 'yes') {
+        const item = this.dialogItem;
+        // Разряжаем точку сразу — активность (викторина/переход) обычно уводит
+        // игрока со сцены не мгновенно, а на следующем кадре герой всё ещё
+        // может стоять в той же зоне триггера, и он тут же сработает снова.
+        this.dismissedIds.add(item.id);
+        this.dialog = null;
+        this.dialogItem = null;
+        this._activate(item);
+      } else if (action === 'no') {
+        this.dismissedIds.add(this.dialogItem.id);
+        this.dialog = null;
+        this.dialogItem = null;
+      }
+      return;
+    }
+    if (this.infoBubble) {
+      this.infoBubble = null;
+      return;
+    }
+
+    const scenePoint = this.screenToScene(screenPoint.x, screenPoint.y);
+
+    for (const item of this._allTriggerables()) {
+      const [mx, my] = item.marker;
+      if (Math.hypot(scenePoint.x - mx, scenePoint.y - my) <= MARKER_TAP_RADIUS) {
+        this.dismissedIds.delete(item.id);
+        const t = item.trigger;
+        const tx = t.shape === 'circle' ? t.x : t.x + t.w / 2;
+        const ty = t.shape === 'circle' ? t.y : t.y + t.h / 2;
+        this.player.moveTo(tx, ty, this.grid);
+        return;
+      }
+    }
+    this.player.moveTo(scenePoint.x, scenePoint.y, this.grid);
+  }
+
+  _activate(item) {
+    if (item.kind === 'door') {
+      Sound.doorOpen();
+      this.game.onSceneDoor?.(item);
+      return;
+    }
+    this.game.onHotspotPlay?.(item, this.data.id);
+  }
+
+  draw(ctx, canvasW, canvasH) {
+    const scale = this.transform.scale;
+    const topLeft = this.sceneToScreen(0, 0);
+    const drawW = this.data.size[0] * scale;
+    const drawH = this.data.size[1] * scale;
+
+    ctx.fillStyle = '#12191f';
+    ctx.fillRect(0, 0, canvasW, canvasH);
+
+    if (this.bgImage) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(this.bgImage, topLeft.x, topLeft.y, drawW, drawH);
+    }
+
+    if (this.player) this.player.draw(ctx, this.sceneToScreen, scale, this.heroScale);
+    this._drawOverlaysOnTop(ctx, topLeft, drawW, drawH);
+    this._drawMarkers(ctx);
+
+    if (this.debugMode) this._drawDebug(ctx);
+
+    this._drawBottomBar(ctx, canvasW, canvasH);
+
+    if (this.infoBubble) this.infoBubble.draw(ctx, canvasW, canvasH);
+    if (this.dialog) this.dialog.draw(ctx, canvasW, canvasH);
+  }
+
+  _drawOverlaysOnTop(ctx, topLeft, drawW, drawH) {
+    if (!this.bgImage || !this.player) return;
+    for (const overlay of this.data.overlays || []) {
+      if (this.player.y >= overlay.sortY) continue; // герой ближе к камере — он и так поверх
+      const inside = pointInPolygon(this.player.x, this.player.y, overlay.polygon);
+      const target = inside ? THEME.overlayFadeAlpha : 1;
+      const prev = this.overlayAlpha[overlay.id] ?? 1;
+      const alpha = prev + (target - prev) * Math.min(1, this.lastDt * 6);
+      this.overlayAlpha[overlay.id] = alpha;
+
+      ctx.save();
+      ctx.beginPath();
+      const pts = overlay.polygon;
+      const s0 = this.sceneToScreen(pts[0][0], pts[0][1]);
+      ctx.moveTo(s0.x, s0.y);
+      for (let i = 1; i < pts.length; i++) {
+        const s = this.sceneToScreen(pts[i][0], pts[i][1]);
+        ctx.lineTo(s.x, s.y);
+      }
+      ctx.closePath();
+      ctx.clip();
+      ctx.globalAlpha = alpha;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(this.bgImage, topLeft.x, topLeft.y, drawW, drawH);
+      ctx.restore();
+    }
+  }
+
+  _drawMarkers(ctx) {
+    for (const hotspot of this.data.hotspots) {
+      const completed = this._isHotspotCompleted(hotspot);
+      const screen = this.sceneToScreen(hotspot.marker[0], hotspot.marker[1]);
+      const near = this.player && pointInTrigger(this.player.x, this.player.y, hotspot.trigger);
+      drawHotspotMarker(ctx, screen.x, screen.y, this.transform.scale, {
+        type: hotspot.type, completed, time: this.time, near,
+      });
+    }
+    for (const door of this.data.doors) {
+      const screen = this.sceneToScreen(door.marker[0], door.marker[1]);
+      const near = this.player && pointInTrigger(this.player.x, this.player.y, door.trigger);
+      drawHotspotMarker(ctx, screen.x, screen.y, this.transform.scale, {
+        type: 'door', completed: false, time: this.time, near,
+      });
+    }
+  }
+
+  _isHotspotCompleted(hotspot) {
+    return this.game.isHotspotCompleted?.(hotspot.id) ?? false;
+  }
+
+  _drawBottomBar(ctx, canvasW, canvasH) {
+    const h = Math.max(40, Math.min(56, canvasH * 0.06));
+    ctx.save();
+    ctx.fillStyle = 'rgba(59,36,20,0.82)';
+    ctx.fillRect(0, canvasH - h, canvasW, h);
+    ctx.fillStyle = '#FFF3D6';
+    ctx.font = `800 18px ${THEME.fontFamily}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(this.data.label, 16, canvasH - h / 2);
+    ctx.restore();
+  }
+
+  // ===================== F2 — РЕЖИМ РАЗМЕТКИ/ОТЛАДКИ =====================
+  setCursorScreen(sx, sy) {
+    this.lastCursorScene = this.screenToScene(sx, sy);
+  }
+
+  _drawDebug(ctx) {
+    const scale = this.transform.scale;
+    // маска проходимости
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    for (let row = 0; row < this.grid.rows; row++) {
+      for (let col = 0; col < this.grid.cols; col++) {
+        const walkable = this.grid.cellWalkable(col, row);
+        ctx.fillStyle = walkable ? '#2ecc71' : '#e74c3c';
+        const world = this.grid.toWorld(col, row);
+        const screen = this.sceneToScreen(world.x - this.grid.step / 2, world.y - this.grid.step / 2);
+        ctx.fillRect(screen.x, screen.y, this.grid.step * scale, this.grid.step * scale);
+      }
+    }
+    ctx.restore();
+
+    // зоны trigger, цвет по типу, ярче если "заряжена"
+    for (const item of this._allTriggerables()) {
+      const charged = !this.dismissedIds.has(item.id);
+      const color = item.kind === 'door' ? THEME.hotspotColors.door : (THEME.hotspotColors[item.type] || THEME.hotspotColors.info);
+      ctx.save();
+      ctx.globalAlpha = charged ? 0.5 : 0.2;
+      ctx.strokeStyle = color.dark;
+      ctx.lineWidth = 2;
+      ctx.fillStyle = color.light;
+      ctx.globalAlpha = charged ? 0.25 : 0.1;
+      this._traceTrigger(ctx, item.trigger);
+      ctx.fill();
+      ctx.globalAlpha = charged ? 0.9 : 0.35;
+      this._traceTrigger(ctx, item.trigger);
+      ctx.stroke();
+      ctx.restore();
+
+      const markerScreen = this.sceneToScreen(item.marker[0], item.marker[1]);
+      ctx.save();
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#000000';
+      ctx.beginPath();
+      ctx.arc(markerScreen.x, markerScreen.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // перекрытия (клавиша T — только они, поверх маски)
+    if (this.debugOverlayOnly) {
+      for (const overlay of this.data.overlays || []) {
+        ctx.save();
+        ctx.strokeStyle = '#f1c40f';
+        ctx.fillStyle = 'rgba(241,196,15,0.2)';
+        ctx.lineWidth = 2;
+        const pts = overlay.polygon;
+        ctx.beginPath();
+        const s0 = this.sceneToScreen(pts[0][0], pts[0][1]);
+        ctx.moveTo(s0.x, s0.y);
+        for (let i = 1; i < pts.length; i++) {
+          const s = this.sceneToScreen(pts[i][0], pts[i][1]);
+          ctx.lineTo(s.x, s.y);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // хитбокс героя
+    if (this.player) {
+      const screen = this.sceneToScreen(this.player.x, this.player.y);
+      ctx.save();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(screen.x, screen.y, CONFIG.illustrated.hitboxHalfW * scale, CONFIG.illustrated.hitboxHalfH * scale, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // координаты курсора
+    if (this.lastCursorScene) {
+      ctx.save();
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(8, 8, 150, 26);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '13px monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${Math.round(this.lastCursorScene.x)}, ${Math.round(this.lastCursorScene.y)}`, 14, 21);
+      ctx.restore();
+    }
+  }
+
+  _traceTrigger(ctx, trigger) {
+    ctx.beginPath();
+    if (trigger.shape === 'circle') {
+      const s = this.sceneToScreen(trigger.x, trigger.y);
+      ctx.arc(s.x, s.y, trigger.r * this.transform.scale, 0, Math.PI * 2);
+    } else {
+      const s = this.sceneToScreen(trigger.x, trigger.y);
+      ctx.rect(s.x, s.y, trigger.w * this.transform.scale, trigger.h * this.transform.scale);
+    }
+  }
+}
+
+  return { IllustratedScene };
+})();
+
+__mod["engine/input.js"] = (function () {
+
+// Единая точка ввода: клавиатура (стрелки/WASD/Enter/Пробел/Esc) + указатель
+// (тап/клик, координаты сразу переводятся в логические пиксели канваса).
+
+class Input {
+  constructor(canvas, toLogicalCoords) {
+    this.canvas = canvas;
+    this.toLogicalCoords = toLogicalCoords;
+    this.keys = new Set();
+    this.keysPressed = new Set(); // клавиши, нажатые именно в этом кадре
+
+    this.pointerDown = false;
+    this.pointerTap = null; // {x, y} — разовое событие тапа, разбирается сценой и очищается
+    this.onFirstGesture = null; // колбэк один раз при первом жесте (для разблокировки звука)
+    this._firstGestureFired = false;
+
+    window.addEventListener('keydown', (e) => this._onKeyDown(e));
+    window.addEventListener('keyup', (e) => this._onKeyUp(e));
+
+    canvas.addEventListener('pointerdown', (e) => this._onPointerDown(e));
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
+  _fireFirstGesture() {
+    if (!this._firstGestureFired) {
+      this._firstGestureFired = true;
+      this.onFirstGesture?.();
+    }
+  }
+
+  _onKeyDown(e) {
+    const code = e.code;
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Enter', 'Escape'].includes(code)) {
+      e.preventDefault();
+    }
+    if (!this.keys.has(code)) this.keysPressed.add(code);
+    this.keys.add(code);
+    this._fireFirstGesture();
+  }
+
+  _onKeyUp(e) {
+    this.keys.delete(e.code);
+  }
+
+  _onPointerDown(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    const cssX = e.clientX - rect.left;
+    const cssY = e.clientY - rect.top;
+    const logical = this.toLogicalCoords(cssX, cssY, rect);
+    if (logical) {
+      this.pointerTap = logical;
+    }
+    this._fireFirstGesture();
+  }
+
+  /** Забрать тап (однократно) — вызывать раз в кадр из активной сцены. */
+  consumeTap() {
+    const tap = this.pointerTap;
+    this.pointerTap = null;
+    return tap;
+  }
+
+  /** Забрать клавишу, нажатую именно в этом кадре (для меню, диалогов). */
+  consumeKeyPress(code) {
+    if (this.keysPressed.has(code)) {
+      this.keysPressed.delete(code);
+      return true;
+    }
+    return false;
+  }
+
+  /** Направление движения по удерживаемым клавишам: {x, y} в диапазоне [-1, 1]. */
+  getMoveAxis() {
+    let x = 0;
+    let y = 0;
+    if (this.keys.has('ArrowLeft') || this.keys.has('KeyA')) x -= 1;
+    if (this.keys.has('ArrowRight') || this.keys.has('KeyD')) x += 1;
+    if (this.keys.has('ArrowUp') || this.keys.has('KeyW')) y -= 1;
+    if (this.keys.has('ArrowDown') || this.keys.has('KeyS')) y += 1;
+    return { x, y };
+  }
+
+  isConfirmPressed() {
+    return this.consumeKeyPress('Enter') || this.consumeKeyPress('Space');
+  }
+
+  isCancelPressed() {
+    return this.consumeKeyPress('Escape');
+  }
+
+  /** Вызывать в конце каждого кадра, чтобы очистить одноразовые события. */
+  endFrame() {
+    this.keysPressed.clear();
+  }
+}
+
+  return { Input };
+})();
+
+__mod["engine/illustratedBootstrap.js"] = (function () {
+const { IllustratedScene } = __mod["engine/illustratedScene.js"];
+const { Input } = __mod["engine/input.js"];
+const { Sound } = __mod["engine/sound.js"];
+const { Storage } = __mod["engine/storage.js"];
+const { loadThemeFont } = __mod["ui/theme.js"];
+// Временный тестовый запуск нового движка (готовые иллюстрации) для одной
+// сцены — используется, пока не все локации переведены со старого
+// пиксель-артового движка. Активируется через ?scene=rome в адресе.
+// Как только все сцены будут готовы, это заменит src/main.js целиком.
+
+
+
+
+
+
+
+// Метка времени в URL каждой сцены/ассета — пока идёт активная правка данных
+// (JSON и картинки грузятся через fetch()/Image.src, а не как ES-модули,
+// сборщик их не трогает и заголовки сервера браузер иногда игнорирует для
+// уже закешированной ранее копии). Без этого поправленный rome.json может
+// не долетать до браузера даже после перезапуска сервера.
+const CACHE_BUST = `v=${Date.now()}`;
+function withCacheBust(src) {
+  return src + (src.includes('?') ? '&' : '?') + CACHE_BUST;
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = withCacheBust(src);
+  });
+}
+
+function loadJson(src) {
+  return fetch(withCacheBust(src)).then((r) => r.json());
+}
+
+async function runIllustratedTest(sceneName) {
+  loadThemeFont();
+
+  const [sceneData, heroMeta] = await Promise.all([
+    loadJson(`src/data/scenes/${sceneName}.json`),
+    loadJson('assets/sprites/hero_girl.json'),
+  ]);
+  const [bgImage, heroSheet] = await Promise.all([
+    loadImage(sceneData.image),
+    loadImage(`assets/sprites/${heroMeta.file}`),
+  ]);
+
+  const canvas = document.getElementById('game-canvas');
+  const ctx = canvas.getContext('2d');
+  const phoneFrame = document.getElementById('phone-frame');
+
+  const completed = new Set();
+  const game = {
+    isHotspotCompleted: (id) => completed.has(id),
+    onHotspotPlay: (item) => {
+      // Тестовый режим: реальные викторины/мини-игры подключаются отдельным
+      // промтом — здесь просто отмечаем точку пройденной, чтобы видеть
+      // зелёную галочку и повторный "разряд" триггера.
+      completed.add(item.id);
+      Sound.points();
+    },
+    onSceneDoor: (door) => {
+      // eslint-disable-next-line no-console
+      console.log('[door] переход в', door.target, '(в тестовом режиме без реального перехода)');
+    },
+  };
+
+  const scene = new IllustratedScene({ game, sceneData, bgImage, heroSheet, heroMeta });
+  scene.enter();
+
+  let dpr = window.devicePixelRatio || 1;
+  let cssW = 0;
+  let cssH = 0;
+
+  function resize() {
+    const availW = phoneFrame.clientWidth;
+    const availH = phoneFrame.clientHeight;
+    cssW = availW;
+    cssH = availH;
+    dpr = window.devicePixelRatio || 1;
+    canvas.style.width = `${cssW}px`;
+    canvas.style.height = `${cssH}px`;
+    canvas.width = Math.max(1, Math.round(cssW * dpr));
+    canvas.height = Math.max(1, Math.round(cssH * dpr));
+
+    const sceneScale = Math.min(cssW / sceneData.size[0], cssH / sceneData.size[1]);
+    const drawW = sceneData.size[0] * sceneScale;
+    const drawH = sceneData.size[1] * sceneScale;
+    const offsetX = (cssW - drawW) / 2;
+    const offsetY = (cssH - drawH) / 2;
+    scene.setTransform(sceneScale, offsetX, offsetY);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function toLogicalCoords(cssX, cssY) {
+    return { x: cssX, y: cssY };
+  }
+  const input = new Input(canvas, toLogicalCoords);
+  input.onFirstGesture = () => Sound.unlock();
+
+  canvas.addEventListener('pointermove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    scene.setCursorScreen(e.clientX - rect.left, e.clientY - rect.top);
+  });
+
+  const muteButton = document.getElementById('mute-button');
+  function updateMuteButton() {
+    muteButton.textContent = Sound.isMuted() ? '🔇' : '🔊';
+  }
+  muteButton.addEventListener('click', () => {
+    Sound.unlock();
+    Sound.toggleMute();
+    updateMuteButton();
+  });
+  updateMuteButton();
+
+  window.__game = { scene, input, Storage };
+
+  let lastTime = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - lastTime) / 1000);
+    lastTime = now;
+
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    scene.update(dt, input);
+    scene.draw(ctx, cssW, cssH);
+
+    ctx.restore();
+    input.endFrame();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+}
+
+  return { runIllustratedTest };
+})();
+
+__mod["engine/tilemap.js"] = (function () {
+
+// Простая сетка коллизий для локации. Тайл — 16×16 логических пикселей.
+
+const TILE_SIZE = 16;
+
+class TileMap {
+  constructor(cols, rows) {
+    this.cols = cols;
+    this.rows = rows;
+    this.width = cols * TILE_SIZE;
+    this.height = rows * TILE_SIZE;
+    this.solid = new Uint8Array(cols * rows); // 1 = стена/мебель, непроходимо
+  }
+
+  index(col, row) {
+    return row * this.cols + col;
+  }
+
+  inBounds(col, row) {
+    return col >= 0 && row >= 0 && col < this.cols && row < this.rows;
+  }
+
+  isWalkable(col, row) {
+    if (!this.inBounds(col, row)) return false;
+    return this.solid[this.index(col, row)] === 0;
+  }
+
+  setSolid(col, row, value = 1) {
+    if (!this.inBounds(col, row)) return;
+    this.solid[this.index(col, row)] = value;
+  }
+
+  /** Помечает прямоугольную область (в тайлах) как непроходимую — удобно для мебели. */
+  setSolidRect(col, row, w, h, value = 1) {
+    for (let r = row; r < row + h; r++) {
+      for (let c = col; c < col + w; c++) {
+        this.setSolid(c, r, value);
+      }
+    }
+  }
+
+  worldToGrid(x, y) {
+    return { col: Math.floor(x / TILE_SIZE), row: Math.floor(y / TILE_SIZE) };
+  }
+
+  gridToWorldCenter(col, row) {
+    return { x: col * TILE_SIZE + TILE_SIZE / 2, y: row * TILE_SIZE + TILE_SIZE / 2 };
+  }
+
+  /** Проверка коллизии точки-персонажа (с небольшим радиусом) в мировых координатах. */
+  isPointWalkable(x, y, radius = 5) {
+    const points = [
+      [x - radius, y - radius],
+      [x + radius, y - radius],
+      [x - radius, y + radius],
+      [x + radius, y + radius],
+    ];
+    return points.every(([px, py]) => {
+      const { col, row } = this.worldToGrid(px, py);
+      return this.isWalkable(col, row);
+    });
+  }
+}
+
+  return { TILE_SIZE, TileMap };
+})();
+
+__mod["engine/pathfinding.js"] = (function () {
+const { TileMap, TILE_SIZE } = __mod["engine/tilemap.js"];
+// Поиск пути по сетке (BFS по 4-связности с отсечением углов) для тапа "иди сюда".
+
+
+
+/**
+ * Находит путь между двумя точками в мировых координатах.
+ * Возвращает массив мировых точек-waypoint'ов (центры тайлов) либо null, если пути нет.
+ */
+function findPath(map, fromX, fromY, toX, toY) {
+  const start = map.worldToGrid(fromX, fromY);
+  const goal = map.worldToGrid(toX, toY);
+
+  if (!map.isWalkable(goal.col, goal.row)) {
+    // Цель непроходима (тап в стену/мебель) — ищем ближайший проходимый тайл рядом.
+    const alt = findNearestWalkable(map, goal.col, goal.row);
+    if (!alt) return null;
+    goal.col = alt.col;
+    goal.row = alt.row;
+  }
+  if (!map.isWalkable(start.col, start.row)) return null;
+
+  const cameFrom = new Map();
+  const key = (c, r) => `${c},${r}`;
+  const visited = new Set([key(start.col, start.row)]);
+  const queue = [start];
+  let found = false;
+
+  while (queue.length > 0) {
+    const cur = queue.shift();
+    if (cur.col === goal.col && cur.row === goal.row) {
+      found = true;
+      break;
+    }
+    const neighbors = [
+      { col: cur.col + 1, row: cur.row },
+      { col: cur.col - 1, row: cur.row },
+      { col: cur.col, row: cur.row + 1 },
+      { col: cur.col, row: cur.row - 1 },
+    ];
+    for (const n of neighbors) {
+      const k = key(n.col, n.row);
+      if (!visited.has(k) && map.isWalkable(n.col, n.row)) {
+        visited.add(k);
+        cameFrom.set(k, cur);
+        queue.push(n);
+      }
+    }
+  }
+
+  if (!found) return null;
+
+  // Восстанавливаем путь от цели к старту.
+  const path = [];
+  let cur = goal;
+  while (!(cur.col === start.col && cur.row === start.row)) {
+    path.push(map.gridToWorldCenter(cur.col, cur.row));
+    cur = cameFrom.get(key(cur.col, cur.row));
+  }
+  path.reverse();
+  // Последнюю точку заменяем на точный тап (плавнее приход в цель).
+  if (path.length > 0) path[path.length - 1] = { x: toX, y: toY };
+  return path;
+}
+
+function findNearestWalkable(map, col, row) {
+  for (let radius = 1; radius <= 3; radius++) {
+    for (let dr = -radius; dr <= radius; dr++) {
+      for (let dc = -radius; dc <= radius; dc++) {
+        if (map.isWalkable(col + dc, row + dr)) return { col: col + dc, row: row + dr };
+      }
+    }
+  }
+  return null;
+}
+
+/** Хелпер: ведёт сущность по массиву waypoint'ов с заданной скоростью (px/сек). */
+class PathFollower {
+  constructor() {
+    this.path = null;
+    this.index = 0;
+  }
+
+  setPath(path) {
+    this.path = path;
+    this.index = 0;
+  }
+
+  clear() {
+    this.path = null;
+  }
+
+  isActive() {
+    return !!this.path && this.index < this.path.length;
+  }
+
+  /** Возвращает {dx, dy, arrived} — смещение за кадр и флаг завершения пути. */
+  step(entityX, entityY, speed, dt) {
+    if (!this.isActive()) return { dx: 0, dy: 0, arrived: true, moving: false };
+    const target = this.path[this.index];
+    const diffX = target.x - entityX;
+    const diffY = target.y - entityY;
+    const dist = Math.hypot(diffX, diffY);
+    const step = speed * dt;
+
+    if (dist <= step || dist < 0.5) {
+      this.index++;
+      if (this.index >= this.path.length) {
+        this.path = null;
+        return { dx: diffX, dy: diffY, arrived: true, moving: true };
+      }
+      return { dx: diffX, dy: diffY, arrived: false, moving: true };
+    }
+    return { dx: (diffX / dist) * step, dy: (diffY / dist) * step, arrived: false, moving: true };
+  }
+}
+
+  return { findPath, PathFollower };
+})();
+
+__mod["engine/player.js"] = (function () {
+const { CONFIG } = __mod["data/config.js"];
+const { PathFollower, findPath } = __mod["engine/pathfinding.js"];
+const { Assets } = __mod["art/assets.js"];
+// Персонаж игрока: движение (клавиатура + тап-к-точке через pathfinding),
+// коллизии со стенами/мебелью, направление и фаза анимации.
+// Отрисовка спрайта вынесена в art/assets.js, чтобы потом заменить на PNG.
+
+
+
+
+
+class Player {
+  constructor(x, y, character = 'girl') {
+    this.x = x;
+    this.y = y;
+    this.character = character; // 'girl' | 'boy'
+    this.dir = 'down';
+    this.moving = false;
+    this.animTime = 0;
+    this.follower = new PathFollower();
+    this.radius = 5;
+  }
+
+  /** Тап/клик по полу локации — построить путь и пойти туда. */
+  moveTo(worldX, worldY, tileMap) {
+    const path = findPath(tileMap, this.x, this.y, worldX, worldY);
+    if (path) this.follower.setPath(path);
+  }
+
+  stop() {
+    this.follower.clear();
+  }
+
+  update(dt, input, tileMap) {
+    let dx = 0;
+    let dy = 0;
+    const axis = input.getMoveAxis();
+    const keyboardActive = axis.x !== 0 || axis.y !== 0;
+
+    if (keyboardActive) {
+      this.follower.clear(); // клавиатура прерывает автопуть
+      const len = Math.hypot(axis.x, axis.y) || 1;
+      dx = (axis.x / len) * CONFIG.player.speed * dt;
+      dy = (axis.y / len) * CONFIG.player.speed * dt;
+    } else if (this.follower.isActive()) {
+      const result = this.follower.step(this.x, this.y, CONFIG.player.speed, dt);
+      dx = result.dx;
+      dy = result.dy;
+    }
+
+    this.moving = dx !== 0 || dy !== 0;
+
+    if (this.moving) {
+      this._updateDirection(dx, dy);
+      this._tryMove(dx, dy, tileMap);
+      this.animTime += dt;
+    } else {
+      this.animTime += dt; // используется для лёгкого покачивания в покое
+    }
+  }
+
+  _updateDirection(dx, dy) {
+    if (Math.abs(dx) > Math.abs(dy)) {
+      this.dir = dx > 0 ? 'right' : 'left';
+    } else if (dy !== 0) {
+      this.dir = dy > 0 ? 'down' : 'up';
+    }
+  }
+
+  _tryMove(dx, dy, tileMap) {
+    // Двигаем по осям раздельно — так персонаж скользит вдоль стен, а не залипает.
+    if (dx !== 0 && tileMap.isPointWalkable(this.x + dx, this.y, this.radius)) {
+      this.x += dx;
+    }
+    if (dy !== 0 && tileMap.isPointWalkable(this.x, this.y + dy, this.radius)) {
+      this.y += dy;
+    }
+  }
+
+  draw(ctx, camera) {
+    const screen = camera.toScreen(this.x, this.y);
+    Assets.drawPlayer(ctx, this.character, screen.x, screen.y, this.dir, this.animTime, this.moving);
+  }
+}
+
+  return { Player };
+})();
+
+__mod["engine/roomScene.js"] = (function () {
+const { CONFIG } = __mod["data/config.js"];
+const { Camera } = __mod["engine/camera.js"];
+const { Player } = __mod["engine/player.js"];
+const { DoorManager } = __mod["engine/door.js"];
+const { HotspotManager } = __mod["engine/hotspot.js"];
+const { Storage } = __mod["engine/storage.js"];
+const { drawText } = __mod["art/font.js"];
+const { PALETTE } = __mod["art/palette.js"];
+// Базовый класс комнаты-локации: игрок, камера, коллизии, двери, горячие точки.
+// Конкретные локации (Cabin, Corridor, ...) наследуются от него и описывают только
+// свою мебель/декор через метод drawDecor(ctx, camera, time).
+
+
+
+
+
+
+
+
+
+
+const SCREEN_W = CONFIG.screen.width;
+const SCREEN_H = CONFIG.screen.height;
+const HUD_BOTTOM_H = 22; // резерв под нижнюю панель локации (полноценный HUD — этап 8)
+
+class RoomScene {
+  /**
+   * @param {{game:object, tileMap:import('./tilemap.js').TileMap, spawnX:number, spawnY:number,
+   *   doors?:Array, hotspots?:Array, locationLabel:string}} opts
+   */
+  constructor({ game, tileMap, spawnX, spawnY, doors = [], hotspots = [], locationLabel }) {
+    this.game = game;
+    this.tileMap = tileMap;
+    this.spawnX = spawnX;
+    this.spawnY = spawnY;
+    this.locationLabel = locationLabel;
+    this.camera = new Camera(SCREEN_W, SCREEN_H - HUD_BOTTOM_H);
+    this.doorManager = new DoorManager(doors);
+    this.hotspotManager = new HotspotManager(hotspots);
+    this.time = 0;
+    this.player = null;
+  }
+
+  enter() {
+    const character = Storage.get().character || 'girl';
+    this.player = new Player(this.spawnX, this.spawnY, character);
+  }
+
+  exit() {}
+
+  update(dt, input) {
+    this.time += dt;
+
+    if (this.hotspotManager.isDialogOpen()) {
+      // Пока открыт диалог предмета, движение и другие тапы не обрабатываем —
+      // тап уже перехватывается в handleTap().
+    } else {
+      this.player.update(dt, input, this.tileMap);
+      this.doorManager.update(this.player, this.camera);
+      this.hotspotManager.update(this.player, SCREEN_W, SCREEN_H);
+    }
+
+    this.camera.follow(this.player.x, this.player.y, this.tileMap.width, this.tileMap.height);
+
+    const tap = input.consumeTap();
+    if (tap) this._handleTap(tap);
+  }
+
+  _handleTap(screenPoint) {
+    if (this.hotspotManager.isDialogOpen()) {
+      const action = this.hotspotManager.handleTap(screenPoint, this.player, this.camera, SCREEN_W, SCREEN_H, this.tileMap);
+      if (action === 'play') {
+        const hotspot = this.hotspotManager.getOpenHotspot();
+        this.hotspotManager.closeDialog();
+        hotspot?.onPlay?.();
+      }
+      return;
+    }
+
+    if (this.doorManager.isShowingSign()) {
+      const target = this.doorManager.handleTap(screenPoint);
+      if (target) {
+        this.onDoorEnter(target);
+        return;
+      }
+      return;
+    }
+
+    const hotAction = this.hotspotManager.handleTap(screenPoint, this.player, this.camera, SCREEN_W, SCREEN_H, this.tileMap);
+    if (hotAction === 'play') {
+      const hotspot = this.hotspotManager.getOpenHotspot();
+      this.hotspotManager.closeDialog();
+      hotspot?.onPlay?.();
+      return;
+    }
+    // 'closed' (диалог только что закрыт) или 'pending' (герой пошёл к предмету/диалог
+    // только что открылся) — тап уже обработан, дальше на пол его вести не нужно.
+    if (hotAction) return;
+
+    // Не задели дверь/предмет — идём в указанную точку пола.
+    const worldPoint = this.camera.toWorld(screenPoint.x, screenPoint.y);
+    this.player.moveTo(worldPoint.x, worldPoint.y, this.tileMap);
+  }
+
+  /** Переопределяется наследником: что делать при входе в дверь (переход сцены). */
+  onDoorEnter(_target) {}
+
+  /** Переопределяется наследником: отрисовка пола/мебели/декора локации. */
+  drawDecor(_ctx, _camera, _time) {}
+
+  draw(ctx) {
+    this.drawDecor(ctx, this.camera, this.time);
+    this.hotspotManager.draw(ctx, this.camera, this.time);
+    this.player.draw(ctx, this.camera);
+    this.doorManager.draw(ctx, this.camera);
+
+    this._drawBottomBar(ctx);
+  }
+
+  _drawBottomBar(ctx) {
+    ctx.fillStyle = PALETTE.fabricBlueDark;
+    ctx.fillRect(0, SCREEN_H - HUD_BOTTOM_H, SCREEN_W, HUD_BOTTOM_H);
+    drawText(ctx, this.locationLabel, 8, SCREEN_H - HUD_BOTTOM_H + 8, { scale: 1, color: PALETTE.white });
+  }
+}
+
+  return { RoomScene };
+})();
+
+__mod["engine/sceneManager.js"] = (function () {
+const { CONFIG } = __mod["data/config.js"];
+// Управление сценами с плавным затемнением при переходах.
+// Сцена — объект с методами enter(), exit(), update(dt, input), draw(ctx).
+
+
+
+class SceneManager {
+  constructor() {
+    this.current = null;
+    this.pendingScene = null;
+    this.state = 'idle'; // idle | fadeOut | fadeIn
+    this.timer = 0;
+    this.halfDuration = CONFIG.transitionMs / 2;
+  }
+
+  /** Мгновенный переход без затемнения — используется один раз при старте игры. */
+  setInitial(scene) {
+    this.current = scene;
+    scene.enter?.();
+  }
+
+  /** Переход с затемнением на новую сцену. */
+  goto(scene) {
+    if (this.state !== 'idle') return;
+    this.pendingScene = scene;
+    this.state = 'fadeOut';
+    this.timer = 0;
+  }
+
+  isTransitioning() {
+    return this.state !== 'idle';
+  }
+
+  update(dt, input) {
+    if (this.state === 'idle') {
+      this.current?.update(dt, input);
+      return;
+    }
+
+    this.timer += dt * 1000;
+    if (this.state === 'fadeOut' && this.timer >= this.halfDuration) {
+      this.current?.exit?.();
+      this.current = this.pendingScene;
+      this.pendingScene = null;
+      this.current.enter?.();
+      this.state = 'fadeIn';
+      this.timer = 0;
+    } else if (this.state === 'fadeIn' && this.timer >= this.halfDuration) {
+      this.state = 'idle';
+      this.timer = 0;
+    }
+  }
+
+  draw(ctx, w, h) {
+    this.current?.draw(ctx);
+
+    if (this.state === 'idle') return;
+    const progress = Math.min(1, this.timer / this.halfDuration);
+    const alpha = this.state === 'fadeOut' ? progress : 1 - progress;
+    ctx.save();
+    ctx.fillStyle = `rgba(10,7,5,${alpha})`;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  }
+}
+
+  return { SceneManager };
+})();
+
+__mod["quiz/QuizScene.js"] = (function () {
+const { PALETTE } = __mod["art/palette.js"];
+const { drawText, measureText, wrapText } = __mod["art/font.js"];
+const { drawPanel, drawButton, hitTest } = __mod["engine/ui.js"];
+const { createExitConfirmDialog } = __mod["engine/dialogs.js"];
+const { STRINGS } = __mod["data/strings.ru.js"];
+const { CONFIG } = __mod["data/config.js"];
+const { Storage } = __mod["engine/storage.js"];
+const { Sound } = __mod["engine/sound.js"];
+// Универсальный движок викторины: вопрос -> обратная связь -> ... -> итог.
+// Работает с любым набором вопросов из data/quizzes.js.
+
+
+
+
+
+
+
+
+
+
+const SCREEN_W = CONFIG.screen.width;
+const SCREEN_H = CONFIG.screen.height;
+
+class QuizScene {
+  /**
+   * @param {{quiz: object, postcardId?: string, onFinish: (result:{points:number})=>void}} opts
+   */
+  constructor({ quiz, postcardId, onFinish }) {
+    this.quiz = quiz;
+    this.postcardId = postcardId;
+    this.onFinish = onFinish;
+
+    this.step = 'question'; // question | feedback | result
+    this.index = 0;
+    this.correctCount = 0;
+    this.selectedIndex = null;
+    this.exitDialog = null;
+
+    this.answerRects = [];
+    this.continueRect = null;
+    this.closeRect = null;
+    this.finishRect = null;
+    this.shopRect = null;
+
+    this.pointsAwarded = 0;
+    this.pointsDisplay = 0;
+  }
+
+  enter() {
+    Sound.click();
+  }
+
+  _currentQuestion() {
+    return this.quiz.questions[this.index];
+  }
+
+  update(dt, input) {
+    if (input.isCancelPressed()) {
+      if (!this.exitDialog) this._openExitConfirm();
+      // Esc в открытом диалоге подтверждения = "продолжить викторину" (ничего не делаем)
+    }
+
+    const tap = input.consumeTap();
+    if (tap) this.handleTap(tap);
+
+    if (!this.exitDialog && this.step === 'result' && this.pointsDisplay < this.pointsAwarded) {
+      this.pointsDisplay = Math.min(this.pointsAwarded, this.pointsDisplay + Math.ceil(this.pointsAwarded * dt * 2));
+    }
+  }
+
+  _openExitConfirm() {
+    this.exitDialog = createExitConfirmDialog(SCREEN_W, SCREEN_H);
+    Sound.click();
+  }
+
+  handleTap(point) {
+    if (this.exitDialog) {
+      const action = this.exitDialog.handleTap(point);
+      if (action === 'confirm') {
+        this.exitDialog = null;
+      } else if (action === 'cancel') {
+        this.onFinish({ points: 0, exitedEarly: true });
+      }
+      return;
+    }
+
+    if (hitTest(this.closeRect, point)) {
+      this._openExitConfirm();
+      return;
+    }
+
+    if (this.step === 'question') {
+      for (let i = 0; i < this.answerRects.length; i++) {
+        if (hitTest(this.answerRects[i], point)) {
+          this._selectAnswer(i);
+          return;
+        }
+      }
+    } else if (this.step === 'feedback') {
+      if (hitTest(this.continueRect, point)) {
+        this._advance();
+      }
+    } else if (this.step === 'result') {
+      if (hitTest(this.finishRect, point)) {
+        this.onFinish({ points: this.pointsAwarded, exitedEarly: false });
+      }
+    }
+  }
+
+  _selectAnswer(i) {
+    this.selectedIndex = i;
+    const correct = i === this._currentQuestion().correctIndex;
+    if (correct) {
+      this.correctCount++;
+      Sound.correct();
+    } else {
+      Sound.wrong();
+    }
+    this.step = 'feedback';
+  }
+
+  _advance() {
+    this.index++;
+    this.selectedIndex = null;
+    if (this.index >= this.quiz.questions.length) {
+      this._finishQuiz();
+    } else {
+      this.step = 'question';
+    }
+  }
+
+  _finishQuiz() {
+    const total = this.quiz.questions.length;
+    const wasCompletedBefore = Storage.isQuizCompleted(this.quiz.id);
+    const perfect = this.correctCount === total;
+
+    let points = this.correctCount * CONFIG.points.quizCorrectAnswer;
+    if (perfect) points += CONFIG.points.quizPerfectBonus;
+    if (wasCompletedBefore) points = Math.round(points * CONFIG.points.repeatMultiplier);
+
+    Storage.markQuizCompleted(this.quiz.id);
+    if (this.postcardId) Storage.unlockPostcard(this.postcardId);
+    if (points > 0) Storage.addPoints(points);
+
+    this.pointsAwarded = points;
+    this.pointsDisplay = 0;
+    this.step = 'result';
+    Sound.points();
+  }
+
+  draw(ctx) {
+    ctx.fillStyle = PALETTE.uiPanelDark;
+    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+
+    drawText(ctx, this.quiz.title, 12, 10, { scale: 1, color: PALETTE.ink });
+    const closeLabel = STRINGS.common.close;
+    const closeW = measureText(closeLabel, 1) + 12;
+    this.closeRect = drawButton(ctx, SCREEN_W - 10 - closeW, 6, closeW, 16, closeLabel);
+
+    if (this.step === 'question') this._drawQuestion(ctx);
+    else if (this.step === 'feedback') this._drawFeedback(ctx);
+    else if (this.step === 'result') this._drawResult(ctx);
+
+    if (this.exitDialog) this.exitDialog.draw(ctx);
+  }
+
+  _drawProgress(ctx) {
+    const progress = `${this.index + 1}/${this.quiz.questions.length}`;
+    drawText(ctx, progress, SCREEN_W - 16 - measureText(progress, 1), 26, { scale: 1, color: PALETTE.inkSoft });
+  }
+
+  _drawQuestion(ctx) {
+    const q = this._currentQuestion();
+    this._drawProgress(ctx);
+
+    const lines = wrapText(q.question, 30);
+    const panelH = 20 + lines.length * 10;
+    drawPanel(ctx, 10, 30, SCREEN_W - 20, panelH);
+    lines.forEach((line, i) => {
+      drawText(ctx, line, 18, 40 + i * 10, { scale: 1, color: PALETTE.ink });
+    });
+
+    this.answerRects = [];
+    let y = 30 + panelH + 10;
+    q.answers.forEach((answer, i) => {
+      const answerLines = wrapText(answer, 32);
+      const h = 12 + answerLines.length * 9;
+      const rect = drawButton(ctx, 14, y, SCREEN_W - 28, h, '', {});
+      answerLines.forEach((line, li) => {
+        const lineW = measureText(line, 1);
+        drawText(ctx, line, 14 + (rect.w - lineW) / 2, y + 6 + li * 9, { scale: 1, color: PALETTE.ink });
+      });
+      this.answerRects.push(rect);
+      y += h + 6;
+    });
+  }
+
+  _drawFeedback(ctx) {
+    const q = this._currentQuestion();
+    this._drawProgress(ctx);
+    const correct = this.selectedIndex === q.correctIndex;
+
+    const headline = correct ? 'Верно!' : 'Не совсем';
+    drawText(ctx, headline, 18, 40, { scale: 1, color: correct ? PALETTE.uiSuccess : PALETTE.uiDanger });
+
+    const rightAnswer = `Правильный ответ: ${q.answers[q.correctIndex]}`;
+    const rightLines = wrapText(rightAnswer, 32);
+    let y = 54;
+    if (!correct) {
+      rightLines.forEach((line) => {
+        drawText(ctx, line, 18, y, { scale: 1, color: PALETTE.ink });
+        y += 10;
+      });
+      y += 4;
+    }
+
+    const factLines = wrapText(q.fact, 32);
+    const panelH = 14 + factLines.length * 10;
+    drawPanel(ctx, 10, y, SCREEN_W - 20, panelH);
+    factLines.forEach((line, i) => {
+      drawText(ctx, line, 18, y + 8 + i * 10, { scale: 1, color: PALETTE.inkSoft });
+    });
+
+    const isLast = this.index >= this.quiz.questions.length - 1;
+    this.continueRect = drawButton(
+      ctx, SCREEN_W / 2 - 45, SCREEN_H - 44, 90, 24,
+      isLast ? 'Итог' : STRINGS.tutorial.next,
+      { accent: true },
+    );
+  }
+
+  _drawResult(ctx) {
+    const total = this.quiz.questions.length;
+    drawText(ctx, 'Викторина пройдена!', 18, 50, { scale: 1, color: PALETTE.ink });
+    drawText(ctx, `Правильных ответов: ${this.correctCount} из ${total}`, 18, 66, { scale: 1, color: PALETTE.inkSoft });
+
+    drawPanel(ctx, SCREEN_W / 2 - 60, 90, 120, 44);
+    const pointsLabel = `+${this.pointsDisplay} ${STRINGS.hud.points.toUpperCase()}`;
+    const labelW = measureText(pointsLabel, 1);
+    drawText(ctx, pointsLabel, SCREEN_W / 2 - labelW / 2, 108, { scale: 1, color: PALETTE.uiGold });
+
+    if (this.postcardId) {
+      drawText(ctx, 'Открытка получена!', 18, 150, { scale: 1, color: PALETTE.uiSuccess });
+    }
+
+    this.finishRect = drawButton(ctx, SCREEN_W / 2 - 45, SCREEN_H - 44, 90, 24, STRINGS.common.back, { accent: true });
+  }
+}
+
+  return { QuizScene };
+})();
+
+__mod["scenes/CorridorScene.js"] = (function () {
+const { RoomScene } = __mod["engine/roomScene.js"];
+const { TileMap } = __mod["engine/tilemap.js"];
+const { Assets } = __mod["art/assets.js"];
+const { STRINGS } = __mod["data/strings.ru.js"];
+const { PALETTE } = __mod["art/palette.js"];
+// Локация "Коридор лайнера" — хаб между каютой и остальными локациями.
+// На этом этапе (3) реализована только дверь обратно в каюту; двери в ресторан,
+// бассейн, Рим и стойку "Экскурсионное бюро" добавляются на этапе 4-5.
+
+
+
+
+
+
+
+const COLS = 24;
+const ROWS = 8;
+
+function buildTileMap() {
+  const map = new TileMap(COLS, ROWS);
+  map.setSolidRect(0, 0, COLS, 1);
+  map.setSolidRect(0, 0, 1, ROWS);
+  map.setSolidRect(COLS - 1, 0, 1, ROWS);
+  map.setSolidRect(0, ROWS - 1, COLS, 1);
+  // Дверь обратно в каюту — слева
+  map.setSolid(2, 0, 0);
+  map.setSolid(2, ROWS - 1, 0);
+  return map;
+}
+
+class CorridorScene extends RoomScene {
+  constructor(game) {
+    const tileMap = buildTileMap();
+    super({
+      game,
+      tileMap,
+      spawnX: 4 * 16,
+      spawnY: 4 * 16,
+      locationLabel: STRINGS.locations.corridor,
+      doors: [
+        {
+          id: 'toCabin',
+          x: 1 * 16, y: 2 * 16, w: 3 * 16, h: 4 * 16,
+          signX: 2 * 16, signY: 2 * 16,
+          label: STRINGS.locations.cabin,
+          target: 'cabin',
+        },
+      ],
+      hotspots: [],
+    });
+  }
+
+  onDoorEnter(target) {
+    if (target === 'cabin') {
+      Promise.resolve().then(() => { const { CabinScene } = __mod["scenes/CabinScene.js"];
+        this.game.sceneManager.goto(new CabinScene(this.game));
+      });
+    }
+  }
+
+  drawDecor(ctx, camera, time) {
+    const worldW = COLS * 16;
+    const worldH = ROWS * 16;
+    Assets.drawFloorWood(ctx, camera.toScreen(16, 16).x, camera.toScreen(16, 16).y, worldW - 32, worldH - 32);
+    Assets.drawRug(ctx, camera.toScreen(16, worldH / 2 - 8).x, camera.toScreen(16, worldH / 2 - 8).y, worldW - 32, 16, PALETTE.carpetRed);
+    Assets.drawWall(ctx, camera.toScreen(0, 0).x, camera.toScreen(0, 0).y, worldW, 16, PALETTE.wallBlue);
+
+    const doorScreen = camera.toScreen(1 * 16, 2 * 16);
+    Assets.drawDoorFrame(ctx, doorScreen.x, doorScreen.y, 3 * 16, 4 * 16, STRINGS.locations.cabin);
+
+    // Заглушки будущих дверей — просто подписи на стене, без коллизий и переходов.
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    const labels = ['Ресторан', 'Бассейн', 'Рим →'];
+    labels.forEach((label, i) => {
+      const pos = camera.toScreen(10 * 16 + i * 4 * 16, 2 * 16);
+      Assets.drawDoorFrame(ctx, pos.x, pos.y, 2 * 16, 4 * 16, label);
+    });
+    ctx.restore();
+  }
+}
+
+  return { CorridorScene };
+})();
+
+__mod["scenes/CabinScene.js"] = (function () {
+const { RoomScene } = __mod["engine/roomScene.js"];
+const { TileMap } = __mod["engine/tilemap.js"];
+const { Assets } = __mod["art/assets.js"];
+const { STRINGS } = __mod["data/strings.ru.js"];
+const { QUIZZES } = __mod["data/quizzes.js"];
+const { QuizScene } = __mod["quiz/QuizScene.js"];
+const { Storage } = __mod["engine/storage.js"];
+const { PALETTE } = __mod["art/palette.js"];
+// Локация "Каюта" — стартовая комната. Кровать, тумбочка, шкаф, стол с буклетом
+// MSC (викторина), иллюминатор с видом на море, дверь в коридор.
+
+
+
+
+
+
+
+
+
+
+const COLS = 15;
+const ROWS = 18;
+
+function buildTileMap() {
+  const map = new TileMap(COLS, ROWS);
+  map.setSolidRect(0, 0, COLS, 1); // верхняя стена
+  map.setSolidRect(0, 0, 1, ROWS); // левая стена
+  map.setSolidRect(COLS - 1, 0, 1, ROWS); // правая стена
+  map.setSolidRect(0, ROWS - 1, COLS, 1); // нижняя стена
+  map.setSolid(6, ROWS - 1, 0); // дверной проём
+  map.setSolid(7, ROWS - 1, 0);
+  map.setSolid(8, ROWS - 1, 0);
+
+  map.setSolidRect(1, 1, 3, 4); // кровать
+  map.setSolid(4, 1); // тумбочка
+  map.setSolidRect(11, 1, 2, 3); // шкаф
+  map.setSolidRect(10, 12, 3, 2); // стол
+  return map;
+}
+
+class CabinScene extends RoomScene {
+  constructor(game) {
+    const tileMap = buildTileMap();
+    super({
+      game,
+      tileMap,
+      spawnX: 7 * 16 + 8,
+      spawnY: 9 * 16 + 8,
+      locationLabel: STRINGS.locations.cabin,
+      doors: [
+        {
+          id: 'toCorridor',
+          x: 6 * 16, y: 14 * 16, w: 3 * 16, h: 4 * 16,
+          signX: 7.5 * 16, signY: 12 * 16,
+          label: STRINGS.locations.corridor,
+          target: 'corridor',
+        },
+      ],
+      hotspots: [
+        {
+          id: 'mscQuiz',
+          kind: 'quiz',
+          x: 154, y: 175, w: 32, h: 32,
+          // Точка подхода — над столом (сам стол solid, поэтому нельзя подойти
+          // вплотную снизу); должна быть внутри APPROACH_RADIUS от центра хотспота.
+          approachX: 170, approachY: 178,
+          title: STRINGS.locations.cabin,
+          description: 'Пройти викторину «Всё о MSC Cruises»?',
+          isCompleted: () => Storage.isQuizCompleted('msc'),
+          onPlay: () => this._startQuiz(),
+        },
+      ],
+    });
+  }
+
+  onDoorEnter(target) {
+    if (target === 'corridor') {
+      Promise.resolve().then(() => { const { CorridorScene } = __mod["scenes/CorridorScene.js"];
+        this.game.sceneManager.goto(new CorridorScene(this.game));
+      });
+    }
+  }
+
+  _startQuiz() {
+    const quiz = QUIZZES.msc;
+    const scene = new QuizScene({
+      quiz,
+      postcardId: 'cabin',
+      onFinish: () => this.game.sceneManager.goto(this),
+    });
+    this.game.sceneManager.goto(scene);
+  }
+
+  drawDecor(ctx, camera, time) {
+    // Комната рисуется в мировых координатах, поэтому все точки переводим в
+    // экранные через камеру — иначе при центрировании маленькой локации на
+    // большом экране декор "отклеится" от игрока/дверей/хотспотов.
+    const o = camera.toScreen(0, 0);
+
+    Assets.drawFloorWood(ctx, o.x, o.y + 16, COLS * 16, (ROWS - 2) * 16);
+    Assets.drawWall(ctx, o.x, o.y, COLS * 16, 16, PALETTE.wallCream);
+
+    // Иллюминатор на правой стене
+    Assets.drawPorthole(ctx, o.x + COLS * 16 - 24, o.y + 3 * 16 + 8, 14, time);
+
+    Assets.drawBed(ctx, o.x + 1 * 16, o.y + 1 * 16 + 4);
+    Assets.drawNightstand(ctx, o.x + 4 * 16, o.y + 1 * 16 + 24);
+    Assets.drawWardrobe(ctx, o.x + 11 * 16, o.y + 1 * 16);
+    Assets.drawDesk(ctx, o.x + 10 * 16, o.y + 12 * 16);
+    Assets.drawBrochure(ctx, o.x + 10 * 16 + 4, o.y + 12 * 16 - 6);
+
+    // Дверной проём
+    Assets.drawDoorFrame(ctx, o.x + 6 * 16, o.y + (ROWS - 2) * 16, 3 * 16, 2 * 16, STRINGS.locations.corridor);
+  }
+}
+
+  return { CabinScene };
+})();
+
+__mod["scenes/TitleScene.js"] = (function () {
+const { CONFIG } = __mod["data/config.js"];
+const { STRINGS } = __mod["data/strings.ru.js"];
+const { PALETTE } = __mod["art/palette.js"];
+const { Assets } = __mod["art/assets.js"];
+const { drawText, measureText, wrapText } = __mod["art/font.js"];
+const { drawPanel, drawButton, hitTest } = __mod["engine/ui.js"];
+const { Storage } = __mod["engine/storage.js"];
+const { Sound } = __mod["engine/sound.js"];
+// Титульный экран: выбор персонажа, кнопки "Играть"/"Звук"/"Как играть",
+// вводный туториал в 3 шага перед первым стартом.
+
+
+
+
+
+
+
+
+
+
+const SCREEN_W = CONFIG.screen.width;
+const SCREEN_H = CONFIG.screen.height;
+
+class TitleScene {
+  constructor({ game }) {
+    this.game = game;
+    this.mode = 'select'; // select | tutorial
+    this.tutorialStep = 0;
+    this.selectedCharacter = Storage.get().character || 'girl';
+    this.time = 0;
+
+    this.girlRect = null;
+    this.boyRect = null;
+    this.playRect = null;
+    this.soundRect = null;
+    this.howToRect = null;
+    this.nextRect = null;
+  }
+
+  enter() {
+    this.mode = 'select';
+  }
+
+  update(dt) {
+    this.time += dt;
+    const tap = this.game.input.consumeTap();
+    if (tap) this._handleTap(tap);
+  }
+
+  _handleTap(point) {
+    if (this.mode === 'tutorial') {
+      if (hitTest(this.nextRect, point)) {
+        Sound.click();
+        if (this.tutorialStep >= 2) {
+          Storage.set({ tutorialSeen: true });
+          this._startGame();
+        } else {
+          this.tutorialStep++;
+        }
+      }
+      return;
+    }
+
+    if (hitTest(this.girlRect, point)) {
+      this.selectedCharacter = 'girl';
+      Storage.set({ character: 'girl' });
+      Sound.click();
+    } else if (hitTest(this.boyRect, point)) {
+      this.selectedCharacter = 'boy';
+      Storage.set({ character: 'boy' });
+      Sound.click();
+    } else if (hitTest(this.playRect, point)) {
+      Sound.click();
+      if (!Storage.get().tutorialSeen) {
+        this.mode = 'tutorial';
+        this.tutorialStep = 0;
+      } else {
+        this._startGame();
+      }
+    } else if (hitTest(this.soundRect, point)) {
+      Sound.toggleMute();
+      Sound.click();
+    } else if (hitTest(this.howToRect, point)) {
+      Sound.click();
+      this.mode = 'tutorial';
+      this.tutorialStep = 0;
+    }
+  }
+
+  _startGame() {
+    this.game.startVoyage();
+  }
+
+  draw(ctx) {
+    this._drawBackground(ctx);
+    if (this.mode === 'tutorial') this._drawTutorial(ctx);
+    else this._drawSelect(ctx);
+  }
+
+  _drawBackground(ctx) {
+    ctx.fillStyle = PALETTE.skyDay;
+    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H - 60);
+    ctx.fillStyle = PALETTE.seaMid;
+    ctx.fillRect(0, SCREEN_H - 60, SCREEN_W, 60);
+
+    // Волны
+    ctx.strokeStyle = PALETTE.seaFoam;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 4; i++) {
+      const y = SCREEN_H - 50 + i * 12;
+      ctx.beginPath();
+      for (let x = 0; x <= SCREEN_W; x += 4) {
+        const wave = Math.sin(x * 0.15 + this.time * 2 + i) * 2;
+        ctx.lineTo(x, y + wave);
+      }
+      ctx.stroke();
+    }
+
+    // Лайнер-силуэт (заглушка логотипа) — только на экране выбора, чтобы не вылезать из-под туториала
+    if (this.mode === 'select') {
+      const shipY = SCREEN_H - 90 + Math.sin(this.time * 1.5) * 2;
+      ctx.fillStyle = PALETTE.white;
+      ctx.fillRect(SCREEN_W / 2 - 40, shipY, 80, 14);
+      ctx.fillStyle = PALETTE.uiAccent;
+      ctx.fillRect(SCREEN_W / 2 - 40, shipY - 8, 80, 8);
+      ctx.fillStyle = PALETTE.accentOrange;
+      ctx.fillRect(SCREEN_W / 2 - 4, shipY - 20, 8, 12);
+    }
+
+    const title = STRINGS.title.name;
+    const titleW = measureText(title, 2);
+    drawText(ctx, title, SCREEN_W / 2 - titleW / 2, 26, { scale: 2, color: PALETTE.ink });
+    const subtitleW = measureText(STRINGS.title.subtitle, 1);
+    drawText(ctx, STRINGS.title.subtitle, SCREEN_W / 2 - subtitleW / 2, 48, { scale: 1, color: PALETTE.inkSoft });
+  }
+
+  _drawSelect(ctx) {
+    // Вертикальные позиции — в долях высоты экрана, чтобы раскладка не "сплющивалась"
+    // в верхней части при смене логического разрешения игры.
+    const cardW = 80;
+    const cardH = 90;
+    const gap = 10;
+    const startX = SCREEN_W / 2 - cardW - gap / 2;
+    const cardY = Math.round(SCREEN_H * 0.23);
+    const playY = Math.round(SCREEN_H * 0.52);
+    const rowY = Math.round(SCREEN_H * 0.60);
+
+    this.girlRect = this._drawCharacterCard(ctx, startX, cardY, cardW, cardH, 'girl', 'Она');
+    this.boyRect = this._drawCharacterCard(ctx, startX + cardW + gap, cardY, cardW, cardH, 'boy', 'Он');
+
+    this.playRect = drawButton(ctx, SCREEN_W / 2 - 60, playY, 120, 30, STRINGS.title.play, { accent: true });
+    this.soundRect = drawButton(ctx, SCREEN_W / 2 - 60, rowY, 56, 24, `${STRINGS.title.sound}: ${Sound.isMuted() ? 'ВЫКЛ' : 'ВКЛ'}`);
+    this.howToRect = drawButton(ctx, SCREEN_W / 2 + 4, rowY, 56, 24, STRINGS.title.howToPlay);
+  }
+
+  _drawCharacterCard(ctx, x, y, w, h, character, label) {
+    const selected = this.selectedCharacter === character;
+    drawPanel(ctx, x, y, w, h, { border: selected ? PALETTE.uiGold : PALETTE.uiBorder });
+    Assets.drawPlayer(ctx, character, x + w / 2, y + h - 20, 'down', this.time, false);
+    const labelW = measureText(label, 1);
+    drawText(ctx, label, x + (w - labelW) / 2, y + h - 14, { scale: 1, color: PALETTE.ink });
+    return { x, y, w, h };
+  }
+
+  _drawTutorial(ctx) {
+    const steps = [STRINGS.tutorial.step1, STRINGS.tutorial.step2, STRINGS.tutorial.step3];
+    const message = steps[this.tutorialStep];
+    const lines = wrapText(message, 26);
+
+    const w = 200;
+    const h = 90 + lines.length * 10;
+    const x = SCREEN_W / 2 - w / 2;
+    const y = SCREEN_H / 2 - h / 2;
+
+    drawPanel(ctx, x, y, w, h);
+    const stepLabel = `Шаг ${this.tutorialStep + 1} из 3`;
+    drawText(ctx, stepLabel, x + 12, y + 10, { scale: 1, color: PALETTE.inkSoft });
+
+    lines.forEach((line, i) => {
+      drawText(ctx, line, x + 12, y + 26 + i * 10, { scale: 1, color: PALETTE.ink });
+    });
+
+    const isLast = this.tutorialStep >= 2;
+    this.nextRect = drawButton(
+      ctx, x + w / 2 - 55, y + h - 32, 110, 22,
+      isLast ? STRINGS.tutorial.start : STRINGS.tutorial.next,
+      { accent: true },
+    );
+  }
+}
+
+  return { TitleScene };
+})();
+
+(function () {
+const { CONFIG } = __mod["data/config.js"];
+const { Input } = __mod["engine/input.js"];
+const { SceneManager } = __mod["engine/sceneManager.js"];
+const { Sound } = __mod["engine/sound.js"];
+const { TitleScene } = __mod["scenes/TitleScene.js"];
+const { CabinScene } = __mod["scenes/CabinScene.js"];
+const { runIllustratedTest } = __mod["engine/illustratedBootstrap.js"];
+// Точка входа. ВРЕМЕННО два режима, пока идёт переход со старого
+// пиксель-артового движка на новый (готовые иллюстрации, см. IllustratedScene):
+// ?scene=rome в адресе -> новый движок на одной сцене (тестовый прогон);
+// без параметра -> старый рабочий движок (Каюта/Коридор и т.д.), не трогаем,
+// пока не все локации переведены. Как только все сцены будут готовы, эта
+// развилка и весь блок runLegacyGame() уйдут, а src/main.js станет как
+// src/engine/illustratedBootstrap.js.
+
+
+
+
+
+
+
+
+
+const sceneParam = new URLSearchParams(location.search).get('scene');
+
+if (sceneParam) {
+  runIllustratedTest(sceneParam);
+} else {
+  runLegacyGame();
+}
+
+function runLegacyGame() {
+  const SCREEN_W = CONFIG.screen.width;
+  const SCREEN_H = CONFIG.screen.height;
+
+  // Все сцены рисуют в этот офскрин-канвас в логическом разрешении игры —
+  // независимо от экрана/DPR. Он же используется для переноса координат тапов.
+  const gameCanvas = document.createElement('canvas');
+  gameCanvas.width = SCREEN_W;
+  gameCanvas.height = SCREEN_H;
+  const ctx = gameCanvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  // Видимый канвас в DOM — его битмап-буфер выставляется в РЕАЛЬНЫХ пикселях
+  // устройства (CSS-размер × devicePixelRatio), чтобы браузер не растягивал
+  // картинку сам и не размывал пиксель-арт на экранах с дробным DPR (125%/150%).
+  const canvas = document.getElementById('game-canvas');
+  canvas.classList.add('pixelated');
+  const displayCtx = canvas.getContext('2d');
+  let midCanvas = null; // переиспользуемый промежуточный канвас для дробного масштаба
+
+  function resize() {
+    const wrapper = document.getElementById('phone-frame');
+    const availW = wrapper.clientWidth;
+    const availH = wrapper.clientHeight;
+    const cssScale = Math.max(1, Math.floor(Math.min(availW / SCREEN_W, availH / SCREEN_H)));
+
+    const cssW = SCREEN_W * cssScale;
+    const cssH = SCREEN_H * cssScale;
+    canvas.style.width = `${cssW}px`;
+    canvas.style.height = `${cssH}px`;
+
+    const dpr = window.devicePixelRatio || 1;
+    const backingW = Math.max(1, Math.round(cssW * dpr));
+    const backingH = Math.max(1, Math.round(cssH * dpr));
+    if (canvas.width !== backingW || canvas.height !== backingH) {
+      canvas.width = backingW;
+      canvas.height = backingH;
+    }
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+
+  /** Переносит офскрин-канвас на видимый, без блюра при дробном итоговом масштабе. */
+  function presentFrame() {
+    const backingW = canvas.width;
+    const backingH = canvas.height;
+    const exactScale = Math.min(backingW / SCREEN_W, backingH / SCREEN_H);
+    const intScale = Math.max(1, Math.ceil(exactScale - 0.001));
+
+    displayCtx.imageSmoothingEnabled = false;
+    displayCtx.clearRect(0, 0, backingW, backingH);
+
+    if (Math.abs(intScale - exactScale) < 0.01) {
+      // Целочисленный масштаб — рисуем напрямую, без промежуточного шага.
+      const w = SCREEN_W * intScale;
+      const h = SCREEN_H * intScale;
+      const dx = Math.round((backingW - w) / 2);
+      const dy = Math.round((backingH - h) / 2);
+      displayCtx.drawImage(gameCanvas, 0, 0, SCREEN_W, SCREEN_H, dx, dy, w, h);
+    } else {
+      // Дробный масштаб (обычно из-за нецелого devicePixelRatio): сперва рисуем
+      // в целочисленном разрешении на промежуточный канвас (пиксели остаются
+      // ровными), затем плавно уменьшаем его до точного размера — так итог
+      // выглядит чётче, чем растягивание "рваным" дробным шагом.
+      if (!midCanvas) midCanvas = document.createElement('canvas');
+      const midW = SCREEN_W * intScale;
+      const midH = SCREEN_H * intScale;
+      if (midCanvas.width !== midW || midCanvas.height !== midH) {
+        midCanvas.width = midW;
+        midCanvas.height = midH;
+      }
+      const midCtx = midCanvas.getContext('2d');
+      midCtx.imageSmoothingEnabled = false;
+      // gameCanvas прозрачен за пределами отрисованной комнаты (там, где комната
+      // меньше экрана) — без очистки эти пиксели не перекрывают предыдущий кадр
+      // в midCanvas, и там годами "застревает" старое положение камеры/комнаты.
+      midCtx.clearRect(0, 0, midW, midH);
+      midCtx.drawImage(gameCanvas, 0, 0, SCREEN_W, SCREEN_H, 0, 0, midW, midH);
+
+      const w = Math.round(SCREEN_W * exactScale);
+      const h = Math.round(SCREEN_H * exactScale);
+      const dx = Math.round((backingW - w) / 2);
+      const dy = Math.round((backingH - h) / 2);
+      displayCtx.imageSmoothingEnabled = true;
+      displayCtx.drawImage(midCanvas, 0, 0, midW, midH, dx, dy, w, h);
+    }
+  }
+
+  function toLogicalCoords(cssX, cssY, rect) {
+    const x = (cssX / rect.width) * SCREEN_W;
+    const y = (cssY / rect.height) * SCREEN_H;
+    if (x < 0 || y < 0 || x > SCREEN_W || y > SCREEN_H) return null;
+    return { x, y };
+  }
+
+  const input = new Input(canvas, toLogicalCoords);
+  input.onFirstGesture = () => Sound.unlock();
+
+  const sceneManager = new SceneManager();
+
+  const game = {
+    input,
+    sceneManager,
+    startVoyage() {
+      sceneManager.goto(new CabinScene(game));
+    },
+  };
+
+  sceneManager.setInitial(new TitleScene({ game }));
+  window.__game = game; // временный хук для отладки в консоли, убрать перед релизом
+
+  const muteButton = document.getElementById('mute-button');
+  function updateMuteButton() {
+    muteButton.textContent = Sound.isMuted() ? '🔇' : '🔊';
+  }
+  muteButton.addEventListener('click', () => {
+    Sound.unlock();
+    Sound.toggleMute();
+    updateMuteButton();
+  });
+  updateMuteButton();
+
+  let lastTime = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - lastTime) / 1000); // защита от рывков при сворачивании вкладки
+    lastTime = now;
+
+    sceneManager.update(dt, input);
+    ctx.clearRect(0, 0, SCREEN_W, SCREEN_H);
+    sceneManager.draw(ctx, SCREEN_W, SCREEN_H);
+    presentFrame();
+    input.endFrame();
+
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+}
+
+})();
+</script><!--__MSCVOYAGE_BUNDLE__-->
+</body>
+</html>

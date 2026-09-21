@@ -1,0 +1,47 @@
+﻿{
+    "pool":  {
+                 "imageScale":  2,
+                 "file":  "pool_bg.png",
+                 "stub":  false,
+                 "sourceSize":  [
+                                    848,
+                                    1264
+                                ]
+             },
+    "corridor":  {
+                     "imageScale":  1,
+                     "file":  "corridor_bg.png",
+                     "stub":  true,
+                     "sourceSize":  [
+                                        848,
+                                        1264
+                                    ]
+                 },
+    "restaurant":  {
+                       "imageScale":  2,
+                       "file":  "restaurant_bg.png",
+                       "stub":  false,
+                       "sourceSize":  [
+                                          848,
+                                          1264
+                                      ]
+                   },
+    "rome":  {
+                 "imageScale":  2,
+                 "file":  "rome_bg.png",
+                 "stub":  false,
+                 "sourceSize":  [
+                                    848,
+                                    1264
+                                ]
+             },
+    "cabin":  {
+                  "imageScale":  1,
+                  "file":  "cabin_bg.png",
+                  "stub":  true,
+                  "sourceSize":  [
+                                     848,
+                                     1264
+                                 ]
+              }
+}

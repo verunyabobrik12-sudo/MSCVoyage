@@ -1,0 +1,18 @@
+﻿{
+    "cols":  4,
+    "frameWidth":  146,
+    "file":  "hero_girl.png",
+    "framesPerRow":  4,
+    "feet":  [
+                 73,
+                 302
+             ],
+    "directions":  {
+                       "left":  1,
+                       "right":  2,
+                       "down":  0,
+                       "up":  3
+                   },
+    "rows":  4,
+    "frameHeight":  308
+}

@@ -1,0 +1,97 @@
+{
+  "id": "rome",
+  "label": "Рим",
+  "image": "assets/scenes/rome_bg.png",
+  "size": [848, 1264],
+  "spawn": [425, 900],
+  "walkable": [
+    [[70, 240], [780, 240], [780, 1040], [70, 1040]]
+  ],
+  "blockers": [
+    { "id": "fountain", "polygon": [[300, 100], [550, 100], [640, 190], [640, 460], [210, 460], [210, 190]] },
+    { "id": "flowerStall", "polygon": [[100, 395], [220, 395], [220, 530], [100, 530]] },
+    { "id": "bench", "polygon": [[100, 540], [140, 540], [140, 625], [100, 625]] },
+    { "id": "scooter", "polygon": [[100, 590], [195, 590], [195, 685], [100, 685]] },
+    { "id": "luggageCart", "polygon": [[100, 650], [250, 650], [250, 745], [100, 745]] },
+    { "id": "van", "polygon": [[555, 460], [815, 460], [815, 630], [555, 630]] },
+    { "id": "gelatoSign", "polygon": [[605, 620], [695, 620], [695, 685], [605, 685]] },
+    { "id": "cafeTable1", "polygon": [[640, 700], [795, 700], [795, 805], [640, 805]] },
+    { "id": "cafeTable2", "polygon": [[525, 775], [680, 775], [680, 900], [525, 900]] },
+    { "id": "treeOlive", "circle": [140, 455, 25] },
+    { "id": "treeTopRight", "circle": [545, 160, 35] },
+    { "id": "treePineRight", "circle": [745, 470, 35] },
+    { "id": "treePineBottomLeft", "circle": [80, 1030, 35] },
+    { "id": "treePineBottomRight", "circle": [765, 1030, 35] },
+    { "id": "potBottomLeft", "circle": [45, 955, 28] },
+    { "id": "potBottomRight", "circle": [700, 955, 28] }
+  ],
+  "overlays": [
+    { "id": "canopyOlive", "polygon": [[60, 300], [200, 300], [200, 430], [60, 430]], "sortY": 430 },
+    { "id": "canopyTopRight", "polygon": [[480, 0], [620, 0], [620, 130], [480, 130]], "sortY": 130 },
+    { "id": "canopyPineRight", "polygon": [[620, 260], [848, 260], [848, 400], [620, 400]], "sortY": 400 },
+    { "id": "canopyPineBottomLeft", "polygon": [[10, 820], [190, 820], [190, 960], [10, 960]], "sortY": 960 },
+    { "id": "canopyPineBottomRight", "polygon": [[660, 820], [848, 820], [848, 960], [660, 960]], "sortY": 960 },
+    { "id": "vanAwning", "polygon": [[555, 470], [795, 470], [795, 520], [555, 520]], "sortY": 520 },
+    { "id": "cafeUmbrella", "polygon": [[655, 620], [815, 620], [815, 710], [655, 710]], "sortY": 710 }
+  ],
+  "hotspots": [
+    {
+      "id": "coinsMinigame",
+      "type": "minigame",
+      "marker": [425, 330],
+      "trigger": { "shape": "rect", "x": 340, "y": 505, "w": 180, "h": 50 },
+      "label": "Монетки Треви",
+      "description": "Сыграть в «Монетки Треви»?"
+    },
+    {
+      "id": "quizRome",
+      "type": "quiz",
+      "marker": [700, 470],
+      "trigger": { "shape": "circle", "x": 620, "y": 655, "r": 45 },
+      "label": "Викторина «Рим»",
+      "description": "Пройти викторину «Рим»?"
+    },
+    {
+      "id": "infoColosseum",
+      "type": "info",
+      "marker": [150, 80],
+      "trigger": { "shape": "circle", "x": 140, "y": 280, "r": 45 },
+      "label": "Колизей",
+      "fact": "Колизей — крупнейший амфитеатр Древнего Рима, построен в 70–80 гг. н.э. и вмещал до 50 000 зрителей."
+    },
+    {
+      "id": "infoFlowerStall",
+      "type": "info",
+      "marker": [170, 440],
+      "trigger": { "shape": "circle", "x": 130, "y": 365, "r": 45 },
+      "label": "Цветочный лоток",
+      "fact": "Уличные цветочные лотки — привычная часть итальянских площадей, особенно рядом с фонтанами и соборами."
+    },
+    {
+      "id": "infoCompass",
+      "type": "info",
+      "marker": [425, 600],
+      "trigger": { "shape": "circle", "x": 425, "y": 630, "r": 45 },
+      "label": "Мозаика-компас",
+      "fact": "Мозаичные розы ветров часто украшают площади итальянских городов как символ путешествий и странствий."
+    },
+    {
+      "id": "infoCafe",
+      "type": "info",
+      "marker": [700, 700],
+      "trigger": { "shape": "circle", "x": 650, "y": 660, "r": 40 },
+      "label": "Кафе под зонтом",
+      "fact": "Столик под зонтом на площади — классика итальянского «дольче вита»: эспрессо и наблюдение за прохожими."
+    }
+  ],
+  "doors": [
+    {
+      "id": "toShip",
+      "target": "corridor",
+      "marker": [425, 890],
+      "trigger": { "shape": "rect", "x": 350, "y": 930, "w": 150, "h": 70 },
+      "label": "Вернуться на лайнер?",
+      "spawnAt": [425, 900]
+    }
+  ]
+}

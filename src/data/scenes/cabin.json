@@ -14,7 +14,7 @@
     { "id": "sofa", "polygon": [[10, 760], [210, 760], [210, 1040], [10, 1040]] },
     { "id": "coffeeTable", "polygon": [[215, 845], [330, 845], [330, 1020], [215, 1020]] },
     { "id": "consoleUnit", "polygon": [[650, 540], [845, 540], [845, 960], [650, 960]] },
-    { "id": "plantPot", "circle": [295, 275, 50] }
+    { "id": "plantPot", "circle": [255, 270, 28] }
   ],
   "overlays": [],
   "hotspots": [
@@ -22,7 +22,7 @@
       "id": "quizCruises",
       "type": "quiz",
       "marker": [270, 860],
-      "trigger": { "shape": "circle", "x": 400, "y": 950, "r": 60 },
+      "trigger": { "shape": "circle", "x": 270, "y": 1045, "r": 38 },
       "label": "Викторина «Всё о MSC Cruises»",
       "description": "Пройти викторину «Всё о MSC Cruises»?"
     },

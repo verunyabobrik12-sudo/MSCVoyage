@@ -1,19 +1,42 @@
-// Временный тестовый запуск нового движка (готовые иллюстрации) для одной
-// сцены — используется, пока не все локации переведены со старого
-// пиксель-артового движка. Активируется через ?scene=rome в адресе.
-// Как только все сцены будут готовы, это заменит src/main.js целиком.
+// Точка входа нового движка (готовые иллюстрации). Два режима:
+//   runGame()            — полный игровой цикл: титул -> обучение -> HUD ->
+//                           сцены с настоящими переходами по дверям. Это то,
+//                           что видит игрок (index.html без ?scene=).
+//   runIllustratedTest() — одна сцена без титула/HUD, только мир + DOM-окна
+//                          "Да/Нет"/факт — используется для QA разметки
+//                          конкретной локации (?scene=rome и т.п.).
 
 import { IllustratedScene } from './illustratedScene.js';
 import { Input } from './input.js';
 import { Sound } from './sound.js';
 import { Storage } from './storage.js';
-import { loadThemeFont } from '../ui/theme.js';
+import { CONFIG } from '../data/config.js';
+import { STRINGS } from '../data/strings.ru.js';
+import { loadThemeFont, injectDesignSystem } from '../ui/theme.js';
+import { createDialogAdapter } from '../ui/dialogAdapter.js';
+import { createHud } from '../ui/hud.js';
+import { createTitleScreen } from '../ui/titleScreen.js';
+import { createOnboarding } from '../ui/onboarding.js';
+import { openMenu } from '../ui/menu.js';
+import { openQuiz } from '../ui/quizScreen.js';
+import { createToastLayer, createPanel, createButton, createModal } from '../ui/components.js';
+import { QUIZZES } from '../data/quizzes.js';
+
+const KNOWN_SCENES = new Set(['cabin', 'corridor', 'restaurant', 'pool', 'rome']);
+
+// Какой hotspot какую викторину открывает и какую открытку выдаёт за неё
+// (раздел 3.9 — открытки пока только для точек, у которых реально есть
+// готовая викторина; остальные 5 открыток появятся вместе с их точками).
+const HOTSPOT_QUIZ = {
+  quizCruises: { quizId: 'msc', postcardId: 'cabin' },
+  quizRome: { quizId: 'rome', postcardId: 'rome' },
+};
 
 // Метка времени в URL каждой сцены/ассета — пока идёт активная правка данных
 // (JSON и картинки грузятся через fetch()/Image.src, а не как ES-модули,
 // сборщик их не трогает и заголовки сервера браузер иногда игнорирует для
-// уже закешированной ранее копии). Без этого поправленный rome.json может
-// не долетать до браузера даже после перезапуска сервера.
+// уже закешированной ранее копии). Без этого поправленный *.json может не
+// долетать до браузера даже после перезапуска сервера.
 const CACHE_BUST = `v=${Date.now()}`;
 function withCacheBust(src) {
   return src + (src.includes('?') ? '&' : '?') + CACHE_BUST;
@@ -32,41 +55,23 @@ function loadJson(src) {
   return fetch(withCacheBust(src)).then((r) => r.json());
 }
 
-export async function runIllustratedTest(sceneName) {
-  loadThemeFont();
-
-  const [sceneData, heroMeta] = await Promise.all([
-    loadJson(`src/data/scenes/${sceneName}.json`),
-    loadJson('assets/sprites/hero_girl.json'),
-  ]);
-  const [bgImage, heroSheet] = await Promise.all([
-    loadImage(sceneData.image),
-    loadImage(`assets/sprites/${heroMeta.file}`),
-  ]);
-
-  const canvas = document.getElementById('game-canvas');
-  const ctx = canvas.getContext('2d');
-  const phoneFrame = document.getElementById('phone-frame');
-
-  const completed = new Set();
-  const game = {
-    isHotspotCompleted: (id) => completed.has(id),
-    onHotspotPlay: (item) => {
-      // Тестовый режим: реальные викторины/мини-игры подключаются отдельным
-      // промтом — здесь просто отмечаем точку пройденной, чтобы видеть
-      // зелёную галочку и повторный "разряд" триггера.
-      completed.add(item.id);
-      Sound.points();
-    },
-    onSceneDoor: (door) => {
-      // eslint-disable-next-line no-console
-      console.log('[door] переход в', door.target, '(в тестовом режиме без реального перехода)');
-    },
+async function loadHero() {
+  const heroMeta = await loadJson('assets/sprites/hero_girl.json');
+  const heroSheet = await loadImage(`assets/sprites/${heroMeta.file}`);
+  const heroPortrait = {
+    sheetSrc: withCacheBust(`assets/sprites/${heroMeta.file}`),
+    frameWidth: heroMeta.frameWidth,
+    frameHeight: heroMeta.frameHeight,
+    sheetWidth: heroMeta.frameWidth * heroMeta.framesPerRow,
+    sheetHeight: heroMeta.frameHeight * heroMeta.rows,
+    frameX: 0,
+    frameY: heroMeta.directions.down * heroMeta.frameHeight,
   };
+  return { heroMeta, heroSheet, heroPortrait };
+}
 
-  const scene = new IllustratedScene({ game, sceneData, bgImage, heroSheet, heroMeta });
-  scene.enter();
-
+/** Общий цикл рендера/ресайза для canvas нового движка (без целочисленного шага — не пиксель-арт). */
+function setupCanvasLoop({ canvas, ctx, phoneFrame, onResize, onFrame }) {
   let dpr = window.devicePixelRatio || 1;
   let cssW = 0;
   let cssH = 0;
@@ -81,20 +86,67 @@ export async function runIllustratedTest(sceneName) {
     canvas.style.height = `${cssH}px`;
     canvas.width = Math.max(1, Math.round(cssW * dpr));
     canvas.height = Math.max(1, Math.round(cssH * dpr));
-
-    const sceneScale = Math.min(cssW / sceneData.size[0], cssH / sceneData.size[1]);
-    const drawW = sceneData.size[0] * sceneScale;
-    const drawH = sceneData.size[1] * sceneScale;
-    const offsetX = (cssW - drawW) / 2;
-    const offsetY = (cssH - drawH) / 2;
-    scene.setTransform(sceneScale, offsetX, offsetY);
+    onResize(cssW, cssH);
   }
   window.addEventListener('resize', resize);
   resize();
 
-  function toLogicalCoords(cssX, cssY) {
-    return { x: cssX, y: cssY };
+  let lastTime = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.05, (now - lastTime) / 1000);
+    lastTime = now;
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+    onFrame(dt, cssW, cssH);
+    ctx.restore();
+    requestAnimationFrame(loop);
   }
+  requestAnimationFrame(loop);
+
+  return { getSize: () => ({ cssW, cssH }) };
+}
+
+// ============================================================================
+// QA одной сцены — ?scene=имя
+// ============================================================================
+export async function runIllustratedTest(sceneName) {
+  loadThemeFont();
+  injectDesignSystem();
+
+  const [sceneData, { heroMeta, heroSheet }] = await Promise.all([
+    loadJson(`src/data/scenes/${sceneName}.json`),
+    loadHero(),
+  ]);
+  const bgImage = await loadImage(sceneData.image);
+
+  const canvas = document.getElementById('game-canvas');
+  const ctx = canvas.getContext('2d');
+  const phoneFrame = document.getElementById('phone-frame');
+  const uiLayer = document.getElementById('ui-layer');
+  uiLayer.classList.add('msc-root');
+  const legacyMute = document.getElementById('mute-button');
+
+  const dialogAdapter = createDialogAdapter(uiLayer);
+  const completed = new Set();
+  const game = {
+    isHotspotCompleted: (id) => completed.has(id),
+    onHotspotPlay: (item) => {
+      // Тестовый режим: реальные викторины/мини-игры подключаются отдельным
+      // промтом — здесь просто отмечаем точку пройденной.
+      completed.add(item.id);
+      Sound.points();
+    },
+    onSceneDoor: (door) => {
+      // eslint-disable-next-line no-console
+      console.log('[door] переход в', door.target, '(в тестовом режиме без реального перехода)');
+    },
+  };
+
+  const scene = new IllustratedScene({ game, sceneData, bgImage, heroSheet, heroMeta, ui: dialogAdapter });
+  scene.enter();
+
+  function toLogicalCoords(cssX, cssY) { return { x: cssX, y: cssY }; }
   const input = new Input(canvas, toLogicalCoords);
   input.onFirstGesture = () => Sound.unlock();
 
@@ -103,34 +155,264 @@ export async function runIllustratedTest(sceneName) {
     scene.setCursorScreen(e.clientX - rect.left, e.clientY - rect.top);
   });
 
-  const muteButton = document.getElementById('mute-button');
-  function updateMuteButton() {
-    muteButton.textContent = Sound.isMuted() ? '🔇' : '🔊';
-  }
-  muteButton.addEventListener('click', () => {
-    Sound.unlock();
-    Sound.toggleMute();
-    updateMuteButton();
+  setupCanvasLoop({
+    canvas, ctx, phoneFrame,
+    onResize: (cssW, cssH) => {
+      const sceneScale = Math.min(cssW / sceneData.size[0], cssH / sceneData.size[1]);
+      const drawW = sceneData.size[0] * sceneScale;
+      const drawH = sceneData.size[1] * sceneScale;
+      scene.setTransform(sceneScale, (cssW - drawW) / 2, (cssH - drawH) / 2);
+    },
+    onFrame: (dt, cssW, cssH) => {
+      scene.update(dt, input);
+      scene.draw(ctx, cssW, cssH);
+      input.endFrame();
+    },
   });
+
+  function updateMuteButton() { legacyMute.textContent = Sound.isMuted() ? '🔇' : '🔊'; }
+  legacyMute.addEventListener('click', () => { Sound.unlock(); Sound.toggleMute(); updateMuteButton(); });
   updateMuteButton();
 
   window.__game = { scene, input, Storage };
+}
 
-  let lastTime = performance.now();
-  function loop(now) {
-    const dt = Math.min(0.05, (now - lastTime) / 1000);
-    lastTime = now;
+// ============================================================================
+// Полный игровой цикл — титул -> обучение -> HUD -> сцены
+// ============================================================================
+export async function runGame() {
+  loadThemeFont();
+  injectDesignSystem();
 
-    ctx.save();
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, cssW, cssH);
+  const canvas = document.getElementById('game-canvas');
+  const ctx = canvas.getContext('2d');
+  const phoneFrame = document.getElementById('phone-frame');
+  const uiLayer = document.getElementById('ui-layer');
+  uiLayer.classList.add('msc-root');
+  const legacyMute = document.getElementById('mute-button');
+  legacyMute.style.display = 'none'; // новый флоу рисует свою кнопку звука
 
-    scene.update(dt, input);
-    scene.draw(ctx, cssW, cssH);
+  const { heroMeta, heroSheet, heroPortrait } = await loadHero();
+  let hud = null;
+  const dialogAdapter = createDialogAdapter(uiLayer, {
+    onOpen: () => hud?.setDimmed(true),
+    onClose: () => hud?.setDimmed(false),
+  });
+  const toastLayer = createToastLayer(uiLayer);
+  toastLayer.el.classList.add('msc-root');
 
-    ctx.restore();
-    input.endFrame();
-    requestAnimationFrame(loop);
+  const sceneCache = new Map();
+  async function loadScene(name) {
+    if (sceneCache.has(name)) return sceneCache.get(name);
+    const sceneData = await loadJson(`src/data/scenes/${name}.json`);
+    const bgImage = await loadImage(sceneData.image);
+    const entry = { sceneData, bgImage };
+    sceneCache.set(name, entry);
+    return entry;
   }
-  requestAnimationFrame(loop);
+
+  let scene = null;
+  let input = null;
+  let resizeToScene = () => {};
+
+  function computeProgress() {
+    const s = Storage.get();
+    const done = Object.keys(s.completedQuizzes).length + Object.keys(s.completedMinigames).length;
+    return Math.min(100, (done / CONFIG.illustrated.totalActivities) * 100);
+  }
+
+  const gameApi = {
+    isHotspotCompleted(id) {
+      const s = Storage.get();
+      const mapping = HOTSPOT_QUIZ[id];
+      if (mapping) return !!s.completedQuizzes[mapping.quizId];
+      return !!s.completedMinigames[id];
+    },
+    onHotspotPlay(item) {
+      if (item.type === 'quiz') {
+        const mapping = HOTSPOT_QUIZ[item.id];
+        const quiz = mapping && QUIZZES[mapping.quizId];
+        if (!quiz) {
+          toastLayer.show('Эта викторина появится позже', { iconName: 'info' });
+          return;
+        }
+        // Диалог "Сыграть?" уже снял блокировку сцены (см. IllustratedScene._resolveDialog) —
+        // пока открыт сам экран викторины, мир должен оставаться на паузе.
+        scene.blocked = true;
+        hud?.setDimmed(true);
+        openQuiz({
+          container: uiLayer,
+          quiz,
+          postcardId: mapping.postcardId,
+          pointsBadgeEl: hud?.pointsBadge,
+          onPointsChanged: (n) => { hud?.setPoints(n); hud?.setProgress(computeProgress()); },
+          onFinish: () => { scene.blocked = false; hud?.setDimmed(false); },
+        });
+        return;
+      }
+      if (item.type === 'minigame') {
+        // Настоящий каркас мини-игр — следующий шаг этого этапа; пока просто
+        // засчитываем прохождение, чтобы HUD было на чём проверить.
+        const { wasPlayed } = Storage.markMinigamePlayed(item.id, 10);
+        const amount = Math.round(CONFIG.points.minigamePointsPerScoreUnit * 10);
+        if (!wasPlayed) Storage.addPoints(amount);
+        Sound.points();
+        hud?.setPoints(Storage.get().points);
+        hud?.setProgress(computeProgress());
+        toastLayer.show(`+${amount} баллов`, { iconName: 'coin' });
+      }
+    },
+    async onSceneDoor(door) {
+      if (!KNOWN_SCENES.has(door.target)) {
+        toastLayer.show('Этот переход появится позже', { iconName: 'info' });
+        return;
+      }
+      const { sceneData, bgImage } = await loadScene(door.target);
+      const reverseDoor = (sceneData.doors || []).find((d) => d.target === scene.data.id);
+      const spawnAt = reverseDoor ? reverseDoor.spawnAt : sceneData.spawn;
+      const entryDoorId = reverseDoor ? reverseDoor.id : null;
+      enterScene(sceneData, bgImage, spawnAt, entryDoorId);
+    },
+  };
+
+  function enterScene(sceneData, bgImage, spawnPoint, entryDoorId) {
+    scene = new IllustratedScene({ game: gameApi, sceneData, bgImage, heroSheet, heroMeta, ui: dialogAdapter });
+    scene.enter(spawnPoint, entryDoorId);
+    resizeToScene();
+    Storage.set({ currentSceneId: sceneData.id });
+    hud?.setGoal(STRINGS.goals[sceneData.id] || sceneData.label, 'info');
+  }
+
+  function toLogicalCoords(cssX, cssY) { return { x: cssX, y: cssY }; }
+
+  function startCanvasLoop() {
+    input = new Input(canvas, toLogicalCoords);
+    input.onFirstGesture = () => Sound.unlock();
+    canvas.addEventListener('pointermove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      scene?.setCursorScreen(e.clientX - rect.left, e.clientY - rect.top);
+    });
+
+    setupCanvasLoop({
+      canvas, ctx, phoneFrame,
+      onResize: (cssW, cssH) => {
+        resizeToScene = () => {
+          if (!scene) return;
+          const sceneScale = Math.min(cssW / scene.data.size[0], cssH / scene.data.size[1]);
+          const drawW = scene.data.size[0] * sceneScale;
+          const drawH = scene.data.size[1] * sceneScale;
+          scene.setTransform(sceneScale, (cssW - drawW) / 2, (cssH - drawH) / 2);
+        };
+        resizeToScene();
+      },
+      onFrame: (dt, cssW, cssH) => {
+        if (!scene) return;
+        scene.update(dt, input);
+        scene.draw(ctx, cssW, cssH);
+        input.endFrame();
+      },
+    });
+  }
+
+  async function beginPlaying() {
+    const startId = KNOWN_SCENES.has(Storage.get().currentSceneId) ? Storage.get().currentSceneId : 'cabin';
+    const { sceneData, bgImage } = await loadScene(startId);
+    startCanvasLoop();
+    enterScene(sceneData, bgImage, sceneData.spawn, null);
+
+    hud = createHud({
+      container: uiLayer,
+      heroPortrait,
+      points: Storage.get().points,
+      progressPercent: computeProgress(),
+      muted: Sound.isMuted(),
+      onOpenMap: () => toastLayer.show('Карта появится в следующем шаге', { iconName: 'map' }),
+      onOpenPostcards: () => toastLayer.show('Открытки появятся в следующем шаге', { iconName: 'postcard' }),
+      onOpenShop: () => toastLayer.show('Магазин появится в следующем шаге', { iconName: 'shop' }),
+      onToggleSound: () => { Sound.unlock(); Sound.toggleMute(); hud.setMuted(Sound.isMuted()); },
+      onOpenMenu: () => {
+        hud.setDimmed(true);
+        openMenu({
+          container: uiLayer,
+          muted: Sound.isMuted(),
+          onToggleSound: () => { Sound.unlock(); Sound.toggleMute(); hud.setMuted(Sound.isMuted()); },
+          onHowToPlay: () => showOnboarding(),
+          onNewGame: () => { Storage.reset(); teardownGame(); showTitle(); },
+          onMainMenu: () => { teardownGame(); showTitle(); },
+          onClose: () => hud.setDimmed(false),
+        });
+      },
+    });
+    hud.setGoal(STRINGS.goals[startId] || sceneData.label, 'info');
+  }
+
+  function teardownGame() {
+    hud?.setVisible(false);
+    hud?.el.remove();
+    hud = null;
+    scene = null;
+  }
+
+  function showOnboarding() {
+    createOnboarding({
+      container: uiLayer,
+      heroPortrait,
+      onDone: () => { Storage.set({ tutorialSeen: true }); },
+    });
+  }
+
+  function showTitle() {
+    const title = createTitleScreen({
+      container: uiLayer,
+      hasSave: Storage.get().tutorialSeen,
+      muted: Sound.isMuted(),
+      heroSprite: heroPortrait,
+      onToggleSound: () => { Sound.unlock(); Sound.toggleMute(); title.setMuted(Sound.isMuted()); },
+      onPlay: async () => {
+        title.remove();
+        if (!Storage.get().tutorialSeen) {
+          await new Promise((resolve) => {
+            createOnboarding({ container: uiLayer, heroPortrait, onDone: () => { Storage.set({ tutorialSeen: true }); resolve(); } });
+          });
+        }
+        beginPlaying();
+      },
+      onNewGame: () => {
+        confirmCentered(uiLayer, STRINGS.menu.newGameConfirm).then((yes) => {
+          if (!yes) return;
+          Storage.reset();
+          title.remove();
+          showTitle();
+        });
+      },
+      onHowToPlay: () => showOnboarding(),
+    });
+  }
+
+  showTitle();
+  window.__game = { Storage, get scene() { return scene; }, get hud() { return hud; } };
+}
+
+/** Небольшое центрированное окно "Да/Нет" вне мира — для титульного экрана. */
+function confirmCentered(container, message) {
+  return new Promise((resolve) => {
+    const { el: panel, body } = createPanel();
+    const p = document.createElement('p');
+    p.className = 'msc-dialog-text';
+    p.textContent = message;
+    body.appendChild(p);
+    const actions = document.createElement('div');
+    actions.className = 'msc-dialog-actions';
+    const yes = createButton({ label: STRINGS.doors.yes, variant: 'red' });
+    const no = createButton({ label: STRINGS.doors.no, variant: 'green' });
+    actions.appendChild(yes.el);
+    actions.appendChild(no.el);
+    body.appendChild(actions);
+    const modal = createModal({ bodyEl: panel, container, onRequestClose: () => finish(false) });
+    let settled = false;
+    function finish(v) { if (settled) return; settled = true; modal.close(); resolve(v); }
+    yes.button.addEventListener('click', () => finish(true));
+    no.button.addEventListener('click', () => finish(false));
+    modal.open();
+  });
 }

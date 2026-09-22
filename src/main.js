@@ -1,10 +1,8 @@
-// Точка входа. ВРЕМЕННО два режима, пока идёт переход со старого
-// пиксель-артового движка на новый (готовые иллюстрации, см. IllustratedScene):
-// ?scene=rome в адресе -> новый движок на одной сцене (тестовый прогон);
-// без параметра -> старый рабочий движок (Каюта/Коридор и т.д.), не трогаем,
-// пока не все локации переведены. Как только все сцены будут готовы, эта
-// развилка и весь блок runLegacyGame() уйдут, а src/main.js станет как
-// src/engine/illustratedBootstrap.js.
+// Точка входа. Все пять локаций переведены на новый движок (готовые
+// иллюстрации) — он теперь запускается по умолчанию (runGame(): титул ->
+// обучение -> HUD -> сцены). Старый пиксель-артовый движок оставлен только
+// как запасной ориентир, доступен через ?legacy=1, и трогать его незачем.
+// ?scene=имя — QA одной сцены без титула/HUD (см. illustratedBootstrap.js).
 
 import { CONFIG } from './data/config.js';
 import { Input } from './engine/input.js';
@@ -12,14 +10,17 @@ import { SceneManager } from './engine/sceneManager.js';
 import { Sound } from './engine/sound.js';
 import { TitleScene } from './scenes/TitleScene.js';
 import { CabinScene } from './scenes/CabinScene.js';
-import { runIllustratedTest } from './engine/illustratedBootstrap.js';
+import { runIllustratedTest, runGame } from './engine/illustratedBootstrap.js';
 
-const sceneParam = new URLSearchParams(location.search).get('scene');
+const params = new URLSearchParams(location.search);
+const sceneParam = params.get('scene');
 
 if (sceneParam) {
   runIllustratedTest(sceneParam);
-} else {
+} else if (params.has('legacy')) {
   runLegacyGame();
+} else {
+  runGame();
 }
 
 function runLegacyGame() {

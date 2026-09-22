@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MSC Voyage — галерея UI (только для разработки)</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #1b2a33; }
+  body {
+    font-family: 'Nunito', 'Segoe UI', Arial, sans-serif;
+    color: #fff;
+    padding: 32px 24px 120px;
+  }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  .gallery-note { opacity: .7; margin: 0 0 32px; font-size: 14px; }
+  section.gsec {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 20px 24px 28px;
+    margin-bottom: 28px;
+  }
+  section.gsec h2 {
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    opacity: .65;
+    margin: 0 0 16px;
+    font-weight: 800;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+  .row + .row { margin-top: 18px; }
+  .cell { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .cell-label { font-size: 12px; opacity: .6; }
+  .stage {
+    position: relative;
+    background: linear-gradient(160deg, #274052, #1b2a33);
+    border-radius: 12px;
+    min-height: 60px;
+  }
+  .stage--panel { width: 340px; padding: 20px; }
+  .stage--tall { min-height: 420px; width: 360px; display: flex; align-items: center; justify-content: center; }
+  .stage--wide { width: 100%; min-height: 90px; display: flex; align-items: center; }
+</style>
+</head>
+<body>
+  <h1>MSC Voyage — галерея компонентов</h1>
+  <p class="gallery-note">Только для разработки, в dist не попадает. Этап 2, шаг 1: токены + ui/components.js. Экраны (титул, HUD, викторина и т.д.) появятся здесь по мере готовности следующих шагов.</p>
+
+  <section class="gsec">
+    <h2>Panel + Ribbon</h2>
+    <div class="row">
+      <div class="cell">
+        <div class="stage stage--panel" id="demo-panel"></div>
+        <span class="cell-label">Panel</span>
+      </div>
+      <div class="cell">
+        <div class="stage stage--wide" style="justify-content:center;" id="demo-ribbon"></div>
+        <span class="cell-label">Ribbon</span>
+      </div>
+      <div class="cell">
+        <div class="stage stage--wide" style="justify-content:center; width:220px;" id="demo-ribbon-wrap"></div>
+        <span class="cell-label">Ribbon — длинный текст</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="gsec">
+    <h2>Кнопки — варианты и размеры</h2>
+    <div class="row" id="demo-buttons-variants"></div>
+    <div class="row" id="demo-buttons-sizes"></div>
+    <div class="row" id="demo-buttons-states"></div>
+  </section>
+
+  <section class="gsec">
+    <h2>CloseButton</h2>
+    <div class="row">
+      <div class="cell">
+        <div class="stage" style="width:120px;height:80px;" id="demo-close"></div>
+        <span class="cell-label">на краю панели</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="gsec">
+    <h2>Modal (обычный) + Modal dock (окно "Да/Нет")</h2>
+    <div class="row">
+      <div class="cell">
+        <button class="trigger-btn" id="open-modal">Открыть modal</button>
+      </div>
+      <div class="cell">
+        <button class="trigger-btn" id="open-dock">Открыть dock-окно (Да/Нет)</button>
+      </div>
+      <div class="cell">
+        <button class="trigger-btn" id="open-shake">Открыть + тряска (неверный ответ)</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="gsec">
+    <h2>Toast</h2>
+    <div class="row">
+      <div class="cell">
+        <button class="trigger-btn" id="fire-toast">+15 баллов</button>
+      </div>
+      <div class="cell">
+        <button class="trigger-btn" id="fire-toast2">Новая открытка!</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="gsec">
+    <h2>SpeechBubble</h2>
+    <div class="row">
+      <div class="cell">
+        <div class="stage stage--wide" id="demo-bubble-left"></div>
+        <span class="cell-label">хвостик слева</span>
+      </div>
+      <div class="cell">
+        <div class="stage stage--wide" id="demo-bubble-right"></div>
+        <span class="cell-label">хвостик справа</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="gsec">
+    <h2>ProgressDots / ProgressBar / StarRow</h2>
+    <div class="row">
+      <div class="cell"><div id="demo-dots"></div><span class="cell-label">Вопрос 3 из 6</span></div>
+    </div>
+    <div class="row">
+      <div class="cell" style="width:260px;"><div id="demo-bar-1"></div><span class="cell-label">35%</span></div>
+      <div class="cell" style="width:260px;"><div id="demo-bar-2"></div><span class="cell-label">90%</span></div>
+    </div>
+    <div class="row">
+      <div class="cell"><div id="demo-stars-1"></div><span class="cell-label">1 звезда</span></div>
+      <div class="cell"><div id="demo-stars-2"></div><span class="cell-label">2 звезды</span></div>
+      <div class="cell"><div id="demo-stars-3"></div><span class="cell-label">3 звезды</span></div>
+      <div class="cell"><div id="demo-stars-0"></div><span class="cell-label">0 звёзд (попробуйте ещё)</span></div>
+    </div>
+  </section>
+
+  <section class="gsec">
+    <h2>PointsBadge + CoinFly + FloatingText</h2>
+    <div class="row" style="align-items:center;">
+      <div class="cell">
+        <div id="demo-points-badge"></div>
+        <span class="cell-label">клик — монеты долетают</span>
+      </div>
+      <div class="cell">
+        <button class="trigger-btn" id="demo-shop-icon">Магазин (источник монет)</button>
+      </div>
+      <div class="cell">
+        <button class="trigger-btn" id="demo-floating">Показать "+10"</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="gsec">
+    <h2>Tabs</h2>
+    <div class="row">
+      <div class="stage stage--wide" style="width:360px;" id="demo-tabs"></div>
+    </div>
+  </section>
+
+  <section class="gsec">
+    <h2>Card — магазин экскурсий</h2>
+    <div class="row" id="demo-cards"></div>
+  </section>
+
+  <section class="gsec">
+    <h2>IconButton (HUD)</h2>
+    <div class="row" id="demo-iconbuttons"></div>
+  </section>
+
+  <section class="gsec">
+    <h2>Confetti</h2>
+    <div class="row">
+      <div class="cell">
+        <div class="stage" style="width:300px;height:160px;overflow:hidden;" id="demo-confetti-stage">
+          <button class="trigger-btn" id="fire-confetti" style="margin:60px auto;display:block;">Салют!</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="gsec">
+    <h2>Иконки</h2>
+    <div class="row" id="demo-icons"></div>
+  </section>
+
+<style>
+  .trigger-btn {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800;
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 2px solid rgba(255,255,255,.3);
+    background: rgba(255,255,255,.08);
+    color: #fff;
+    cursor: pointer;
+  }
+  .icon-swatch { display:flex; flex-direction:column; align-items:center; gap:6px; width:64px; }
+  .icon-swatch svg { width:40px; height:40px; }
+  .icon-swatch span { font-size: 11px; opacity: .7; }
+</style>
+
+<script type="module">
+  import { injectDesignSystem, loadThemeFont } from './src/ui/theme.js';
+  import {
+    createPanel, createRibbon, createButton, createCloseButton, createModal,
+    createToastLayer, createSpeechBubble, createProgressDots, createProgressBar,
+    createStarRow, createPointsBadge, flyCoinsTo, showFloatingText, createTabs,
+    createCard, createPurchasedRibbon, createIconButton, spawnConfetti,
+  } from './src/ui/components.js';
+  import { icon } from './src/ui/icons.js';
+
+  loadThemeFont();
+  injectDesignSystem();
+  document.body.classList.add('msc-root');
+
+  const $ = (id) => document.getElementById(id);
+
+  // Panel + Ribbon
+  {
+    const { el: panel, body } = createPanel();
+    body.style.color = '#4A2C14';
+    body.style.fontWeight = '700';
+    body.textContent = 'Содержимое панели: кремовый градиент, двойная рамка, блик сверху.';
+    $('demo-panel').appendChild(panel);
+    $('demo-ribbon').appendChild(createRibbon('Ресторан'));
+    $('demo-ribbon-wrap').appendChild(createRibbon('Очень длинное название локации, которое переносится', { wrap: true }));
+  }
+
+  // Buttons
+  {
+    const variants = ['green', 'orange', 'blue', 'red'];
+    for (const v of variants) {
+      const { el } = createButton({ label: v === 'green' ? 'Да' : v === 'orange' ? 'Нет' : v === 'blue' ? 'Как играть' : 'Выйти', variant: v });
+      $('demo-buttons-variants').appendChild(el);
+    }
+    for (const size of ['l', 'm', 's']) {
+      const { el } = createButton({ label: `Кнопка ${size.toUpperCase()}`, variant: 'blue', size });
+      $('demo-buttons-sizes').appendChild(el);
+    }
+    $('demo-buttons-states').appendChild(createButton({ label: 'С иконкой', variant: 'green', icon: 'check' }).el);
+    $('demo-buttons-states').appendChild(createButton({ label: 'Забронировать на сайте Пак Групп', variant: 'blue' }).el);
+    $('demo-buttons-states').appendChild(createButton({ label: 'Купить', variant: 'green', disabled: true, reason: 'Не хватает 40 баллов' }).el);
+  }
+
+  // CloseButton
+  {
+    const host = $('demo-close');
+    host.style.position = 'relative';
+    const inner = document.createElement('div');
+    inner.style.cssText = 'position:absolute;inset:20px;background:#FFE6B0;border:3px solid #3B2414;border-radius:14px;';
+    host.appendChild(inner);
+    inner.appendChild(createCloseButton({ onClick: () => {} }));
+  }
+
+  // Modal / dock modal / shake
+  {
+    function quizLikeBody(text) {
+      const { el: panel, body } = createPanel();
+      body.appendChild(createRibbon('Викторина «Рим»'));
+      const p = document.createElement('p');
+      p.style.cssText = 'color:#4A2C14;font-weight:700;font-size:18px;margin:14px 0 18px;';
+      p.textContent = text;
+      body.appendChild(p);
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:12px;justify-content:center;';
+      row.appendChild(createButton({ label: 'Да', variant: 'green' }).el);
+      row.appendChild(createButton({ label: 'Нет', variant: 'red' }).el);
+      body.appendChild(row);
+      return panel;
+    }
+    const modal1 = createModal({ bodyEl: quizLikeBody('Обычное модальное окно — затемняет всё, по центру.'), container: document.body });
+    $('open-modal').addEventListener('click', () => modal1.open());
+
+    const dockBody = quizLikeBody('Сыграть в «Монетки Треви»? Сцена под окном остаётся видна.');
+    const modal2 = createModal({ bodyEl: dockBody, container: document.body, dock: true });
+    $('open-dock').addEventListener('click', () => modal2.open());
+
+    const shakeBody = quizLikeBody('Неверно! Панель встряхивается, чтобы это подчеркнуть.');
+    const modal3 = createModal({ bodyEl: shakeBody, container: document.body });
+    $('open-shake').addEventListener('click', () => { modal3.open(); setTimeout(() => modal3.shake(), 300); });
+  }
+
+  // Toast
+  {
+    const layer = createToastLayer(document.body);
+    layer.el.style.position = 'fixed';
+    $('fire-toast').addEventListener('click', () => layer.show('+15 баллов', { iconName: 'coin' }));
+    $('fire-toast2').addEventListener('click', () => layer.show('Новая открытка!', { iconName: 'postcard' }));
+  }
+
+  // SpeechBubble
+  {
+    function bubbleBody(text) {
+      const p = document.createElement('p');
+      p.style.cssText = 'margin:0;color:#4A2C14;font-weight:700;';
+      p.textContent = text;
+      return p;
+    }
+    $('demo-bubble-left').appendChild(createSpeechBubble({ bodyEl: bubbleBody('Коснитесь пола — герой пойдёт туда.'), tailSide: 'left' }));
+    $('demo-bubble-right').appendChild(createSpeechBubble({ bodyEl: bubbleBody('За викторины начисляются баллы.'), tailSide: 'right' }));
+  }
+
+  // Progress
+  {
+    $('demo-dots').appendChild(createProgressDots(6, 2));
+    $('demo-bar-1').appendChild(createProgressBar(35).el);
+    $('demo-bar-2').appendChild(createProgressBar(90).el);
+    $('demo-stars-1').appendChild(createStarRow(1, { animate: false }));
+    $('demo-stars-2').appendChild(createStarRow(2, { animate: false }));
+    $('demo-stars-3').appendChild(createStarRow(3, { animate: false }));
+    $('demo-stars-0').appendChild(createStarRow(0, { animate: false }));
+  }
+
+  // PointsBadge + CoinFly + FloatingText
+  {
+    const badge = createPointsBadge(120);
+    $('demo-points-badge').appendChild(badge.el);
+    $('demo-shop-icon').addEventListener('click', (e) => {
+      flyCoinsTo(e.currentTarget, badge.el, 6).then(() => {
+        badge.setPoints(120 + 15);
+      });
+    });
+    $('demo-floating').addEventListener('click', (e) => showFloatingText('+10', e.currentTarget));
+  }
+
+  // Tabs
+  {
+    const tabs = createTabs([{ id: 'shop', label: 'Магазин' }, { id: 'mine', label: 'Мои экскурсии' }], { activeId: 'shop' });
+    $('demo-tabs').appendChild(tabs.el);
+  }
+
+  // Cards
+  {
+    function priceTag() {
+      const p = document.createElement('span');
+      p.className = 'msc-card__price';
+      p.innerHTML = icon('coin') + '<span>60</span>';
+      return p;
+    }
+    const card1 = createCard({
+      title: 'Колизей и форум',
+      desc: 'Пешая экскурсия по главным памятникам Древнего Рима.',
+      footer: (() => {
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
+        wrap.appendChild(priceTag());
+        wrap.appendChild(createButton({ label: 'Купить', variant: 'green' }).el);
+        return wrap;
+      })(),
+    });
+    const card2 = createCard({
+      purchased: true,
+      title: 'Фонтан Треви и Пантеон',
+      desc: 'Вечерняя прогулка по историческому центру.',
+      footer: (() => {
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
+        wrap.appendChild(createButton({ label: 'Забронировать на сайте Пак Групп', variant: 'blue' }).el);
+        return wrap;
+      })(),
+    });
+    const card3 = createCard({
+      title: 'Ватиканские музеи',
+      desc: 'Не хватает баллов — кнопка неактивна с причиной.',
+      footer: (() => {
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
+        wrap.appendChild(priceTag());
+        wrap.appendChild(createButton({ label: 'Купить', variant: 'green', disabled: true, reason: 'Не хватает 40 баллов' }).el);
+        return wrap;
+      })(),
+    });
+    [card1, card2, card3].forEach((c) => { c.style.width = '250px'; $('demo-cards').appendChild(c); });
+  }
+
+  // IconButton
+  {
+    ['map', 'postcard', 'shop'].forEach((name) => {
+      const label = name === 'map' ? 'Карта' : name === 'postcard' ? 'Открытки' : 'Магазин';
+      $('demo-iconbuttons').appendChild(createIconButton({ iconName: name, label, variant: 'blue' }));
+    });
+  }
+
+  // Confetti
+  {
+    $('fire-confetti').addEventListener('click', () => spawnConfetti($('demo-confetti-stage'), { count: 30 }));
+  }
+
+  // Icons showcase
+  {
+    const names = ['star', 'coin', 'lock', 'check', 'bulb', 'map', 'postcard', 'shop', 'sound', 'soundOff', 'question', 'exclaim', 'info', 'liner', 'clock', 'arrow'];
+    for (const name of names) {
+      const cell = document.createElement('div');
+      cell.className = 'icon-swatch';
+      cell.innerHTML = icon(name) + `<span>${name}</span>`;
+      $('demo-icons').appendChild(cell);
+    }
+  }
+</script>
+</body>
+</html>

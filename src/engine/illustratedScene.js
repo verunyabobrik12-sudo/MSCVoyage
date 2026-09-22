@@ -7,7 +7,6 @@ import { CollisionGrid } from './collisionGrid.js';
 import { pointInTrigger, pointInPolygon } from './polygon.js';
 import { IllustratedPlayer } from './illustratedPlayer.js';
 import { drawHotspotMarker } from '../ui/hotspotMarker.js';
-import { ConfirmDialog, InfoBubble } from '../ui/dialogs.js';
 import { THEME } from '../ui/theme.js';
 import { Sound } from './sound.js';
 import { CONFIG } from '../data/config.js';
@@ -16,9 +15,17 @@ const ENTRY_GUARD_MS = 1500;
 const DISMISS_MARGIN = 30;
 const MARKER_TAP_RADIUS = 46; // в координатах сцены — тап рядом со значком подводит героя
 
+/**
+ * ui — мост к HTML/CSS-слою окон (раздел 0/3.4 ТЗ этапа 2): окна "Да/Нет" и
+ * облачко факта теперь обычный DOM поверх canvas, а не canvas-примитивы —
+ * сцена лишь просит их показать и ждёт ответа, сама рисует только мир.
+ *   ui.showConfirm({ title?, message }) -> Promise<'yes'|'no'>
+ *   ui.showInfo({ title, fact }) -> Promise<void> (после закрытия/таймаута)
+ */
 export class IllustratedScene {
-  constructor({ game, sceneData, bgImage, heroSheet, heroMeta }) {
+  constructor({ game, sceneData, bgImage, heroSheet, heroMeta, ui }) {
     this.game = game;
+    this.ui = ui;
     this.data = sceneData;
     this.bgImage = bgImage;
     this.heroSheet = heroSheet;
@@ -32,9 +39,7 @@ export class IllustratedScene {
     this.time = 0;
     this.lastDt = 1 / 60;
     this.player = null;
-    this.dialog = null;
-    this.dialogItem = null;
-    this.infoBubble = null;
+    this.blocked = false; // открыто DOM-окно (Да/Нет или облачко факта) — мир на паузе
     this.shownInfoIds = new Set();
     this.dismissedIds = new Set();
     this.entryGuardTimer = ENTRY_GUARD_MS;
@@ -57,9 +62,7 @@ export class IllustratedScene {
     this.entryDoorId = entryDoorId;
     this.shownInfoIds.clear();
     this.dismissedIds.clear();
-    this.dialog = null;
-    this.dialogItem = null;
-    this.infoBubble = null;
+    this.blocked = false;
   }
 
   setTransform(scale, offsetX, offsetY) {
@@ -91,23 +94,19 @@ export class IllustratedScene {
       if (input.consumeKeyPress('KeyT')) this.debugOverlayOnly = !this.debugOverlayOnly;
     }
 
-    if (this.dialog) {
-      this.dialog.update(dt);
-    } else if (this.infoBubble) {
-      this.infoBubble.update(dt);
-      if (this.infoBubble.isExpired()) this.infoBubble = null;
-    } else {
-      this.player.update(dt, input, this.grid, CONFIG.illustrated.playerSpeed);
-      this._checkTriggers();
+    if (this.blocked) {
+      // DOM-окно само ловит свои клики/Esc — тап по канвасу лишь гасим,
+      // чтобы он не "протёк" в перемещение героя после закрытия окна.
+      input.consumeTap();
+      input.isCancelPressed();
+      return;
     }
+
+    this.player.update(dt, input, this.grid, CONFIG.illustrated.playerSpeed);
+    this._checkTriggers();
 
     const tap = input.consumeTap();
     if (tap) this._handleTap(tap);
-
-    if (input.isCancelPressed()) {
-      if (this.dialog) { this.dialog = null; this.dialogItem = null; }
-      else if (this.infoBubble) this.infoBubble = null;
-    }
   }
 
   _allTriggerables() {
@@ -149,44 +148,31 @@ export class IllustratedScene {
   _fireTrigger(item) {
     this.player.stop();
     Sound.bell();
+    this.blocked = true;
     if (item.kind === 'door') {
-      this.dialog = new ConfirmDialog({ message: item.label });
-      this.dialogItem = item;
+      this.ui.showConfirm({ message: item.label }).then((action) => this._resolveDialog(item, action));
       return;
     }
     if (item.type === 'info') {
       this.shownInfoIds.add(item.id);
-      this.infoBubble = new InfoBubble({ title: item.label, fact: item.fact });
+      this.ui.showInfo({ title: item.label, fact: item.fact }).then(() => { this.blocked = false; });
       return;
     }
-    this.dialog = new ConfirmDialog({ title: item.label, message: item.description });
-    this.dialogItem = item;
+    this.ui.showConfirm({ title: item.label, message: item.description }).then((action) => this._resolveDialog(item, action));
+  }
+
+  /**
+   * Разряжаем точку сразу и на "Да", и на "Нет" — активность (викторина/переход)
+   * обычно уводит игрока со сцены не мгновенно, а на следующем кадре герой всё
+   * ещё может стоять в той же зоне триггера, и он тут же сработает снова.
+   */
+  _resolveDialog(item, action) {
+    this.blocked = false;
+    this.dismissedIds.add(item.id);
+    if (action === 'yes') this._activate(item);
   }
 
   _handleTap(screenPoint) {
-    if (this.dialog) {
-      const action = this.dialog.handleTap(screenPoint);
-      if (action === 'yes') {
-        const item = this.dialogItem;
-        // Разряжаем точку сразу — активность (викторина/переход) обычно уводит
-        // игрока со сцены не мгновенно, а на следующем кадре герой всё ещё
-        // может стоять в той же зоне триггера, и он тут же сработает снова.
-        this.dismissedIds.add(item.id);
-        this.dialog = null;
-        this.dialogItem = null;
-        this._activate(item);
-      } else if (action === 'no') {
-        this.dismissedIds.add(this.dialogItem.id);
-        this.dialog = null;
-        this.dialogItem = null;
-      }
-      return;
-    }
-    if (this.infoBubble) {
-      this.infoBubble = null;
-      return;
-    }
-
     const scenePoint = this.screenToScene(screenPoint.x, screenPoint.y);
 
     for (const item of this._allTriggerables()) {
@@ -232,11 +218,6 @@ export class IllustratedScene {
     this._drawMarkers(ctx);
 
     if (this.debugMode) this._drawDebug(ctx);
-
-    this._drawBottomBar(ctx, canvasW, canvasH);
-
-    if (this.infoBubble) this.infoBubble.draw(ctx, canvasW, canvasH);
-    if (this.dialog) this.dialog.draw(ctx, canvasW, canvasH);
   }
 
   _drawOverlaysOnTop(ctx, topLeft, drawW, drawH) {
@@ -288,19 +269,6 @@ export class IllustratedScene {
 
   _isHotspotCompleted(hotspot) {
     return this.game.isHotspotCompleted?.(hotspot.id) ?? false;
-  }
-
-  _drawBottomBar(ctx, canvasW, canvasH) {
-    const h = Math.max(40, Math.min(56, canvasH * 0.06));
-    ctx.save();
-    ctx.fillStyle = 'rgba(59,36,20,0.82)';
-    ctx.fillRect(0, canvasH - h, canvasW, h);
-    ctx.fillStyle = '#FFF3D6';
-    ctx.font = `800 18px ${THEME.fontFamily}`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(this.data.label, 16, canvasH - h / 2);
-    ctx.restore();
   }
 
   // ===================== F2 — РЕЖИМ РАЗМЕТКИ/ОТЛАДКИ =====================

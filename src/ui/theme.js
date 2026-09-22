@@ -467,6 +467,10 @@ const DESIGN_TOKENS_CSS = `
   }
   .msc-star-row .msc-star.is-empty { opacity: .35; transform: scale(1); }
 
+  .msc-hearts-row { display: inline-flex; gap: 4px; }
+  .msc-hearts-row .msc-heart { width: 24px; height: 24px; transition: transform 200ms, opacity 200ms; }
+  .msc-hearts-row .msc-heart.is-empty { opacity: .3; transform: scale(.85); }
+
   .msc-points-badge {
     display: inline-flex; align-items: center; gap: 8px;
     padding: 8px 16px 8px 10px;
@@ -982,6 +986,103 @@ const DESIGN_TOKENS_CSS = `
     .msc-quiz-answer { min-height: 46px; padding: 6px 16px; }
     .msc-quiz-question__text { font-size: var(--msc-fs-body-m); }
   }
+
+  /* ============================== МИНИ-ИГРЫ (раздел 3.6) — общий каркас:
+     правила -> отсчёт -> HUD с паузой -> результат. Разметка и приёмы (single
+     modal + перерисовка .stage) зеркалят .msc-quiz-*, только без вопросов. */
+  .msc-minigame-panel { width: min(560px, 100%); height: 100%; }
+  .msc-minigame-panel .msc-panel__body {
+    height: 100%; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .msc-minigame-stage {
+    flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: flex-start; gap: 18px; text-align: center;
+    padding: 48px 4px 8px;
+    position: relative;
+  }
+  /* Результат раунда — не "лист правил", по центру смотрится лучше; HUD же,
+     наоборот, должен быть прижат к верху экрана, как в любой игре. */
+  .msc-minigame-stage:has(.msc-minigame-result) {
+    justify-content: center; padding-top: 8px;
+  }
+  .msc-minigame-stage:has(.msc-minigame-hud) { padding-top: 4px; }
+  .msc-minigame-placeholder { margin-top: 40px; }
+
+  .msc-minigame-rules { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 420px; }
+  .msc-minigame-rule {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; border-radius: 16px;
+    background: var(--msc-panel-bottom);
+    border: 3px solid var(--msc-gold);
+    text-align: left;
+  }
+  .msc-minigame-rule--avoid { border-color: var(--msc-red-edge); }
+  .msc-minigame-rule__icon { width: 32px; height: 32px; flex: none; }
+  .msc-minigame-rule__text { font-weight: 700; color: var(--msc-text); }
+  .msc-minigame-rules-text { margin: 0; color: var(--msc-text); font-weight: 700; line-height: 1.4; max-width: 420px; }
+  .msc-minigame-cta { min-width: 200px; }
+
+  .msc-minigame-countdown-label { font-weight: 900; font-size: var(--msc-fs-title); color: var(--msc-text); }
+  .msc-minigame-countdown-digit {
+    font-size: 110px; line-height: 1; min-width: 1.2em;
+  }
+  .msc-minigame-countdown-digit.is-word { font-size: 48px; }
+
+  .msc-minigame-hud {
+    width: 100%; display: flex; align-items: center; gap: 14px;
+    flex: none;
+  }
+  .msc-minigame-hud__score {
+    display: flex; align-items: center; gap: 6px; flex: none;
+    font-weight: 900; font-size: var(--msc-fs-title); color: var(--msc-text);
+  }
+  .msc-minigame-hud__score-icon { width: 26px; height: 26px; }
+  .msc-minigame-hud__bar { flex: 1; }
+  .msc-minigame-placeholder {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    padding: 18px; border-radius: 16px;
+    background: var(--msc-panel-bottom);
+    border: 3px dashed var(--msc-gold);
+    max-width: 420px;
+  }
+  .msc-minigame-placeholder__text { margin: 0; color: var(--msc-gray-text); font-weight: 700; line-height: 1.4; }
+
+  .msc-minigame-pause-overlay {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(59, 36, 20, .45);
+    border-radius: inherit;
+    z-index: 2;
+  }
+  /* Панель паузы вложена внутрь .msc-modal--full — без этого унаследует
+     height:100% из общего правила ".msc-modal--full .msc-panel" (см. комментарий
+     у .msc-quiz-stage .msc-quiz-question). У этого правила специфичность
+     0,2,0 (два класса) — переопределяющий селектор должен быть не проще,
+     иначе проигрывает независимо от порядка в файле (так уже было с одним
+     классом здесь — не помогало). */
+  .msc-minigame-pause-overlay .msc-minigame-pause-panel,
+  .msc-minigame-pause-overlay .msc-minigame-pause-panel .msc-panel__inner { height: auto; flex: none; }
+  .msc-minigame-pause-panel { width: min(320px, 90%); }
+  .msc-minigame-exit-confirm {
+    margin-top: 10px; padding: 12px; border-radius: 12px;
+    background: rgba(217,58,43,.12);
+  }
+  .msc-minigame-exit-confirm .msc-dialog-actions { margin-top: 10px; }
+
+  .msc-minigame-result { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .msc-minigame-record {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 900; color: var(--msc-gold-award);
+  }
+  .msc-minigame-record__icon { width: 24px; height: 24px; }
+  .msc-minigame-result__points {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 900; font-size: var(--msc-fs-title); color: var(--msc-text);
+  }
+  .msc-minigame-result__points-icon { width: 30px; height: 30px; }
+  .msc-minigame-result__repeat-note { margin: 0; font-size: 13px; color: var(--msc-gray-text); font-weight: 700; }
+  .msc-minigame-result .msc-dialog-actions { width: 100%; margin-top: 6px; }
 `;
 
 let designSystemInjected = false;

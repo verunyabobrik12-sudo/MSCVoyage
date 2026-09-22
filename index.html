@@ -680,6 +680,52 @@ const CONFIG = {
   return { CONFIG };
 })();
 
+__mod["data/minigames.js"] = (function () {
+
+// Общие данные трёх мини-игр (раздел 3.6 ТЗ этапа 2) — только то, что нужно
+// каркасу экранов (правила/иконки/жизни). Сам геймплей — отдельный этап,
+// здесь у каждой игры вместо него заглушка "Симулировать результат".
+// postcardId — по аналогии с HOTSPOT_QUIZ в illustratedBootstrap.js.
+
+const MINIGAMES = {
+  catchFoodMinigame: {
+    id: 'catchFoodMinigame',
+    title: 'Поймай итальянское',
+    doIcon: 'check',
+    doText: 'Ловите итальянскую еду',
+    avoidIcon: 'exclaim',
+    avoidText: 'Избегайте не итальянской кухни',
+    rules: 'Итальянская еда падает сверху — ловите её корзиной. Другая кухня отнимает жизнь.',
+    lives: 3,
+    postcardId: 'restaurant',
+  },
+  ballMinigame: {
+    id: 'ballMinigame',
+    title: 'Не урони мяч',
+    doIcon: 'check',
+    doText: 'Удерживайте мяч в воздухе',
+    avoidIcon: 'exclaim',
+    avoidText: 'Не давайте мячу упасть',
+    rules: 'Следите за мячом и не давайте ему коснуться воды. Каждое падение — потерянная жизнь.',
+    lives: 3,
+    postcardId: 'pool',
+  },
+  coinsMinigame: {
+    id: 'coinsMinigame',
+    title: 'Монетки Треви',
+    doIcon: 'check',
+    doText: 'Собирайте монетки на бегу',
+    avoidIcon: 'exclaim',
+    avoidText: 'Обходите препятствия на площади',
+    rules: 'Собирайте как можно больше монет за отведённое время, обходя препятствия.',
+    lives: 3,
+    postcardId: 'trevi',
+  },
+};
+
+  return { MINIGAMES };
+})();
+
 __mod["data/quizzes.js"] = (function () {
 
 // Викторины. Структура: QUIZZES[id] = { id, title, hotspot, questions: [...] }.
@@ -857,6 +903,27 @@ const STRINGS = {
     postcardUnlocked: 'Открытка получена!',
     playAgain: 'Ещё раз',
     repeatNote: 'Повторное прохождение: 20% баллов',
+  },
+
+  minigame: {
+    start: 'Начать',
+    ready: 'Приготовьтесь!',
+    go: 'Старт!',
+    pauseTitle: 'Пауза',
+    resume: 'Продолжить',
+    exitConfirm: 'Выйти из игры? Баллы не будут начислены.',
+    simulate: 'Симулировать результат',
+    placeholderNote: 'Геймплей появится на следующем этапе — пока можно проверить экраны.',
+    score: 'Очки',
+    resultGreat: 'Отлично!',
+    resultGood: 'Хорошая работа!',
+    resultTryAgain: 'Попробуйте ещё',
+    pointsEarned: (n) => `Вы заработали ${n} баллов`,
+    repeatNote: 'Повторное прохождение: 20% баллов',
+    newRecord: 'Новый рекорд!',
+    postcardUnlocked: 'Открытка получена!',
+    playAgain: 'Ещё раз',
+    back: 'Вернуться',
   },
 
   doors: {
@@ -2214,6 +2281,10 @@ const DESIGN_TOKENS_CSS = `
   }
   .msc-star-row .msc-star.is-empty { opacity: .35; transform: scale(1); }
 
+  .msc-hearts-row { display: inline-flex; gap: 4px; }
+  .msc-hearts-row .msc-heart { width: 24px; height: 24px; transition: transform 200ms, opacity 200ms; }
+  .msc-hearts-row .msc-heart.is-empty { opacity: .3; transform: scale(.85); }
+
   .msc-points-badge {
     display: inline-flex; align-items: center; gap: 8px;
     padding: 8px 16px 8px 10px;
@@ -2729,6 +2800,103 @@ const DESIGN_TOKENS_CSS = `
     .msc-quiz-answer { min-height: 46px; padding: 6px 16px; }
     .msc-quiz-question__text { font-size: var(--msc-fs-body-m); }
   }
+
+  /* ============================== МИНИ-ИГРЫ (раздел 3.6) — общий каркас:
+     правила -> отсчёт -> HUD с паузой -> результат. Разметка и приёмы (single
+     modal + перерисовка .stage) зеркалят .msc-quiz-*, только без вопросов. */
+  .msc-minigame-panel { width: min(560px, 100%); height: 100%; }
+  .msc-minigame-panel .msc-panel__body {
+    height: 100%; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .msc-minigame-stage {
+    flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: flex-start; gap: 18px; text-align: center;
+    padding: 48px 4px 8px;
+    position: relative;
+  }
+  /* Результат раунда — не "лист правил", по центру смотрится лучше; HUD же,
+     наоборот, должен быть прижат к верху экрана, как в любой игре. */
+  .msc-minigame-stage:has(.msc-minigame-result) {
+    justify-content: center; padding-top: 8px;
+  }
+  .msc-minigame-stage:has(.msc-minigame-hud) { padding-top: 4px; }
+  .msc-minigame-placeholder { margin-top: 40px; }
+
+  .msc-minigame-rules { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 420px; }
+  .msc-minigame-rule {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; border-radius: 16px;
+    background: var(--msc-panel-bottom);
+    border: 3px solid var(--msc-gold);
+    text-align: left;
+  }
+  .msc-minigame-rule--avoid { border-color: var(--msc-red-edge); }
+  .msc-minigame-rule__icon { width: 32px; height: 32px; flex: none; }
+  .msc-minigame-rule__text { font-weight: 700; color: var(--msc-text); }
+  .msc-minigame-rules-text { margin: 0; color: var(--msc-text); font-weight: 700; line-height: 1.4; max-width: 420px; }
+  .msc-minigame-cta { min-width: 200px; }
+
+  .msc-minigame-countdown-label { font-weight: 900; font-size: var(--msc-fs-title); color: var(--msc-text); }
+  .msc-minigame-countdown-digit {
+    font-size: 110px; line-height: 1; min-width: 1.2em;
+  }
+  .msc-minigame-countdown-digit.is-word { font-size: 48px; }
+
+  .msc-minigame-hud {
+    width: 100%; display: flex; align-items: center; gap: 14px;
+    flex: none;
+  }
+  .msc-minigame-hud__score {
+    display: flex; align-items: center; gap: 6px; flex: none;
+    font-weight: 900; font-size: var(--msc-fs-title); color: var(--msc-text);
+  }
+  .msc-minigame-hud__score-icon { width: 26px; height: 26px; }
+  .msc-minigame-hud__bar { flex: 1; }
+  .msc-minigame-placeholder {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    padding: 18px; border-radius: 16px;
+    background: var(--msc-panel-bottom);
+    border: 3px dashed var(--msc-gold);
+    max-width: 420px;
+  }
+  .msc-minigame-placeholder__text { margin: 0; color: var(--msc-gray-text); font-weight: 700; line-height: 1.4; }
+
+  .msc-minigame-pause-overlay {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(59, 36, 20, .45);
+    border-radius: inherit;
+    z-index: 2;
+  }
+  /* Панель паузы вложена внутрь .msc-modal--full — без этого унаследует
+     height:100% из общего правила ".msc-modal--full .msc-panel" (см. комментарий
+     у .msc-quiz-stage .msc-quiz-question). У этого правила специфичность
+     0,2,0 (два класса) — переопределяющий селектор должен быть не проще,
+     иначе проигрывает независимо от порядка в файле (так уже было с одним
+     классом здесь — не помогало). */
+  .msc-minigame-pause-overlay .msc-minigame-pause-panel,
+  .msc-minigame-pause-overlay .msc-minigame-pause-panel .msc-panel__inner { height: auto; flex: none; }
+  .msc-minigame-pause-panel { width: min(320px, 90%); }
+  .msc-minigame-exit-confirm {
+    margin-top: 10px; padding: 12px; border-radius: 12px;
+    background: rgba(217,58,43,.12);
+  }
+  .msc-minigame-exit-confirm .msc-dialog-actions { margin-top: 10px; }
+
+  .msc-minigame-result { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .msc-minigame-record {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 900; color: var(--msc-gold-award);
+  }
+  .msc-minigame-record__icon { width: 24px; height: 24px; }
+  .msc-minigame-result__points {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 900; font-size: var(--msc-fs-title); color: var(--msc-text);
+  }
+  .msc-minigame-result__points-icon { width: 30px; height: 30px; }
+  .msc-minigame-result__repeat-note { margin: 0; font-size: 13px; color: var(--msc-gray-text); font-weight: 700; }
+  .msc-minigame-result .msc-dialog-actions { width: 100%; margin-top: 6px; }
 `;
 
 let designSystemInjected = false;
@@ -3637,7 +3805,7 @@ function wrap(inner, gradDefs, viewBox = '0 0 32 32') {
 
 const STROKE = TOKENS.ink;
 
-/** @param {string} name одно из: star, coin, lock, check, bulb, map, postcard, shop, sound, soundOff, question, exclaim, info, liner, clock */
+/** @param {string} name одно из: star, coin, lock, check, heart, bulb, map, postcard, shop, sound, soundOff, question, exclaim, info, liner, clock */
 function icon(name, opts = {}) {
   const fn = ICONS[name];
   if (!fn) throw new Error(`Неизвестная иконка: ${name}`);
@@ -3682,6 +3850,15 @@ const ICONS = {
     return wrap(
       `<circle cx="16" cy="16" r="13" fill="url(#${g.id})" stroke="${STROKE}" stroke-width="2" />
        <path d="M10 16.5l4 4 8-9" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" />`,
+      [g.def],
+    );
+  },
+
+  heart: () => {
+    const g = grad('#FF9B8F', TOKENS.redDark);
+    return wrap(
+      `<path d="M16 27.5S4 20.3 4 12.3C4 8 7.2 5 11 5c2.2 0 4 1 5 2.7C17 6 18.8 5 21 5c3.8 0 7 3 7 7.3 0 8-12 15.2-12 15.2z" fill="url(#${g.id})" stroke="${STROKE}" stroke-width="2" stroke-linejoin="round" />
+       <ellipse cx="10.5" cy="11" rx="2.6" ry="1.6" fill="#fff" opacity="0.5" />`,
       [g.def],
     );
   },
@@ -4051,6 +4228,21 @@ function createStarRow(count, { max = 3, animate = true } = {}) {
   return root;
 }
 
+/** Ряд сердечек-жизней для HUD мини-игры (раздел 3.6). */
+function createHeartsRow(lives, max = lives) {
+  const root = el('div', 'msc-hearts-row');
+  const hearts = [];
+  for (let i = 0; i < max; i++) {
+    const heart = el('span', i < lives ? 'msc-heart is-filled' : 'msc-heart is-empty', { html: icon('heart') });
+    root.appendChild(heart);
+    hearts.push(heart);
+  }
+  function setLives(n) {
+    hearts.forEach((h, i) => h.className = i < n ? 'msc-heart is-filled' : 'msc-heart is-empty');
+  }
+  return { el: root, setLives };
+}
+
 /** Табличка с иконкой звезды-монеты и "+" справа — открывает магазин (раздел 2/3.3). */
 function createPointsBadge(points, { onClick } = {}) {
   const root = el('button', 'msc-points-badge', { type: 'button', 'aria-label': 'Баллы — открыть магазин' });
@@ -4180,7 +4372,7 @@ function spawnConfetti(container, { count = 24 } = {}) {
   setTimeout(() => layer.remove(), 1600);
 }
 
-  return { createPanel, createRibbon, createButton, createCloseButton, createModal, createToastLayer, createSpeechBubble, createProgressDots, createProgressBar, createStarRow, createPointsBadge, flyCoinsTo, showFloatingText, createTabs, createCard, createPurchasedRibbon, createIconButton, spawnConfetti };
+  return { createPanel, createRibbon, createButton, createCloseButton, createModal, createToastLayer, createSpeechBubble, createProgressDots, createProgressBar, createStarRow, createHeartsRow, createPointsBadge, flyCoinsTo, showFloatingText, createTabs, createCard, createPurchasedRibbon, createIconButton, spawnConfetti };
 })();
 
 __mod["ui/dialogAdapter.js"] = (function () {
@@ -4958,6 +5150,325 @@ function openQuiz({ container, quiz, postcardId, pointsBadgeEl, onPointsChanged,
   return { openQuiz };
 })();
 
+__mod["ui/minigameScreen.js"] = (function () {
+const { createPanel, createRibbon, createButton, createModal, createCloseButton, createProgressBar, createStarRow, createHeartsRow, flyCoinsTo, spawnConfetti } = __mod["ui/components.js"];
+const { icon } = __mod["ui/icons.js"];
+const { STRINGS } = __mod["data/strings.ru.js"];
+const { CONFIG } = __mod["data/config.js"];
+const { Storage } = __mod["engine/storage.js"];
+const { Sound } = __mod["engine/sound.js"];
+// Общий каркас экранов мини-игр (раздел 3.6 ТЗ этапа 2): правила -> отсчёт ->
+// HUD с паузой -> результат. Сам геймплей — отдельный следующий этап; здесь
+// вместо него заглушка "Симулировать результат", которая даёт случайный
+// результат раунда, чтобы можно было проверить весь каркас целиком.
+// Структура и приёмы (единый modal + перерисовка stage, подтверждение выхода,
+// летящие монеты) — по образцу src/ui/quizScreen.js, только без вопросов.
+
+
+
+
+
+
+
+
+const ROUND_SECONDS = 15; // длительность полосы времени в заглушке геймплея
+
+function el(tag, className, attrs = {}) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'text') node.textContent = v;
+    else if (k === 'html') node.innerHTML = v;
+    else node.setAttribute(k, v);
+  }
+  return node;
+}
+
+/**
+ * @param {{container:HTMLElement, game:object, pointsBadgeEl:HTMLElement,
+ *          onPointsChanged:(n:number)=>void, onFinish:Function}} opts
+ */
+function openMinigame({ container, game, pointsBadgeEl, onPointsChanged, onFinish }) {
+  let phase = 'intro'; // intro | countdown | play | pause | result
+  let score = 0;
+  let timeLeft = ROUND_SECONDS;
+  let rafId = null;
+  let lastT = 0;
+  let barApi = null;
+  let pauseOverlay = null;
+
+  const { el: panel, body } = createPanel({ className: 'msc-minigame-panel' });
+  const stage = el('div', 'msc-minigame-stage');
+  body.appendChild(stage);
+  // Кнопка "✕" — единственная, живёт на уровне панели (не внутри прокручиваемого
+  // stage — иначе её намеренный выступ за угол панели раздувает scrollWidth и
+  // добавляет лишнюю горизонтальную прокрутку). Поведение зависит от текущей
+  // фазы, поэтому логика общая с Esc (onRequestClose) в одной функции.
+  panel.appendChild(createCloseButton({ onClick: () => requestClose() }));
+
+  function requestClose() {
+    if (phase === 'play') goToPause();
+    else if (phase === 'pause') resume();
+    else closeAll();
+  }
+
+  const modal = createModal({
+    bodyEl: panel,
+    container,
+    full: true,
+    onRequestClose: requestClose,
+  });
+
+  function closeAll() {
+    stopLoop();
+    modal.close();
+    onFinish?.();
+  }
+
+  function stopLoop() {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+
+  // --- 1) вводный экран правил ---------------------------------------------
+  function renderIntro() {
+    phase = 'intro';
+    stage.innerHTML = '';
+    stage.appendChild(createRibbon(game.title, { wrap: true }));
+
+    const rules = el('div', 'msc-minigame-rules');
+    const doRow = el('div', 'msc-minigame-rule msc-minigame-rule--do');
+    doRow.appendChild(el('span', 'msc-minigame-rule__icon', { html: icon(game.doIcon) }));
+    doRow.appendChild(el('span', 'msc-minigame-rule__text', { text: game.doText }));
+    const avoidRow = el('div', 'msc-minigame-rule msc-minigame-rule--avoid');
+    avoidRow.appendChild(el('span', 'msc-minigame-rule__icon', { html: icon(game.avoidIcon) }));
+    avoidRow.appendChild(el('span', 'msc-minigame-rule__text', { text: game.avoidText }));
+    rules.appendChild(doRow);
+    rules.appendChild(avoidRow);
+    stage.appendChild(rules);
+
+    stage.appendChild(el('p', 'msc-minigame-rules-text', { text: game.rules }));
+
+    const startBtn = createButton({ label: STRINGS.minigame.start, variant: 'green', size: 'l' });
+    startBtn.el.classList.add('msc-minigame-cta');
+    startBtn.button.addEventListener('click', () => { Sound.click(); renderCountdown(); });
+    stage.appendChild(startBtn.el);
+    startBtn.button.focus();
+  }
+
+  // --- 2) отсчёт 3-2-1 ------------------------------------------------------
+  function renderCountdown() {
+    phase = 'countdown';
+    stage.innerHTML = '';
+    stage.appendChild(el('p', 'msc-minigame-countdown-label', { text: STRINGS.minigame.ready }));
+    const digit = el('div', 'msc-minigame-countdown-digit msc-outline-text msc-pop', { text: '3' });
+    stage.appendChild(digit);
+
+    let n = 3;
+    const tick = () => {
+      n -= 1;
+      digit.classList.remove('msc-pop');
+      void digit.offsetWidth; // reflow — перезапускает анимацию на каждой цифре
+      digit.classList.add('msc-pop');
+      if (n > 0) {
+        digit.textContent = String(n);
+        Sound.click();
+        setTimeout(tick, 700);
+      } else {
+        digit.textContent = STRINGS.minigame.go;
+        digit.classList.add('is-word');
+        Sound.correct();
+        setTimeout(renderPlay, 550);
+      }
+    };
+    setTimeout(tick, 700);
+  }
+
+  // --- 3) игровой HUD (заглушка геймплея) -----------------------------------
+  function renderPlay() {
+    phase = 'play';
+    score = 0;
+    timeLeft = ROUND_SECONDS;
+    stage.innerHTML = '';
+
+    const hud = el('div', 'msc-minigame-hud');
+    const scoreBox = el('div', 'msc-minigame-hud__score');
+    scoreBox.appendChild(el('span', 'msc-minigame-hud__score-icon', { html: icon('star') }));
+    const scoreValue = el('span', 'msc-minigame-hud__score-value', { text: '0' });
+    scoreBox.appendChild(scoreValue);
+    hud.appendChild(scoreBox);
+
+    const bar = createProgressBar(100);
+    barApi = bar;
+    const barWrap = el('div', 'msc-minigame-hud__bar');
+    barWrap.appendChild(bar.el);
+    hud.appendChild(barWrap);
+
+    const hearts = createHeartsRow(game.lives);
+    hud.appendChild(hearts.el);
+
+    stage.appendChild(hud);
+
+    const placeholder = el('div', 'msc-minigame-placeholder');
+    placeholder.appendChild(el('p', 'msc-minigame-placeholder__text', { text: STRINGS.minigame.placeholderNote }));
+    const simBtn = createButton({ label: STRINGS.minigame.simulate, variant: 'orange', size: 'l' });
+    simBtn.button.addEventListener('click', () => finishRound());
+    placeholder.appendChild(simBtn.el);
+    stage.appendChild(placeholder);
+
+    startLoop();
+  }
+
+  // Общий тик полосы времени + заглушечного счёта, используется и при первом
+  // старте раунда, и при возврате из паузы (состояние round не сбрасывается).
+  function startLoop() {
+    lastT = performance.now();
+    function frame(t) {
+      const dt = Math.min(0.05, (t - lastT) / 1000);
+      lastT = t;
+      timeLeft -= dt;
+      barApi.setProgress((Math.max(0, timeLeft) / ROUND_SECONDS) * 100);
+      const scoreValue = stage.querySelector('.msc-minigame-hud__score-value');
+      if (scoreValue) scoreValue.textContent = String(Math.round((ROUND_SECONDS - timeLeft) * 4));
+      if (timeLeft <= 0) { finishRound(); return; }
+      rafId = requestAnimationFrame(frame);
+    }
+    rafId = requestAnimationFrame(frame);
+  }
+
+  function goToPause() {
+    if (phase !== 'play') return;
+    stopLoop();
+    phase = 'pause';
+    renderPauseOverlay();
+  }
+
+  function renderPauseOverlay() {
+    pauseOverlay = el('div', 'msc-minigame-pause-overlay');
+    const { el: pPanel, body: pBody } = createPanel({ className: 'msc-minigame-pause-panel' });
+    pBody.appendChild(createRibbon(STRINGS.minigame.pauseTitle));
+
+    const list = el('div', 'msc-menu-list');
+    const resumeBtn = createButton({ label: STRINGS.minigame.resume, variant: 'green' });
+    const soundBtn = createButton({ label: Sound.isMuted() ? STRINGS.menu.soundOff : STRINGS.menu.soundOn, variant: 'blue' });
+    const exitBtn = createButton({ label: STRINGS.common.exit, variant: 'red' });
+    list.appendChild(resumeBtn.el);
+    list.appendChild(soundBtn.el);
+    list.appendChild(exitBtn.el);
+    pBody.appendChild(list);
+
+    resumeBtn.button.addEventListener('click', () => resume());
+    soundBtn.button.addEventListener('click', () => {
+      Sound.unlock();
+      Sound.toggleMute();
+      soundBtn.el.querySelector('.msc-btn__label').textContent = Sound.isMuted() ? STRINGS.menu.soundOff : STRINGS.menu.soundOn;
+    });
+    exitBtn.button.addEventListener('click', () => {
+      if (pPanel.querySelector('.msc-minigame-exit-confirm')) return;
+      const box = el('div', 'msc-minigame-exit-confirm');
+      box.appendChild(el('p', 'msc-dialog-text', { text: STRINGS.minigame.exitConfirm }));
+      const actions = el('div', 'msc-dialog-actions');
+      const yes = createButton({ label: STRINGS.common.exit, variant: 'red', size: 's' });
+      const no = createButton({ label: STRINGS.common.continue, variant: 'green', size: 's' });
+      yes.button.addEventListener('click', () => closeAll());
+      no.button.addEventListener('click', () => box.remove());
+      actions.appendChild(yes.el);
+      actions.appendChild(no.el);
+      box.appendChild(actions);
+      pBody.appendChild(box);
+    });
+
+    pauseOverlay.appendChild(pPanel);
+    stage.appendChild(pauseOverlay);
+    resumeBtn.button.focus();
+  }
+
+  function resume() {
+    pauseOverlay?.remove();
+    pauseOverlay = null;
+    phase = 'play';
+    startLoop();
+  }
+
+  // --- 4) результат раунда ---------------------------------------------------
+  function finishRound() {
+    stopLoop();
+    phase = 'result';
+    // Заглушка: случайный результат раунда вместо реального геймплея —
+    // достаточно, чтобы проверить пороги звёзд/рекорд/начисление баллов.
+    score = Math.floor(40 + Math.random() * 61); // 40..100 игровых очков
+    renderResult();
+  }
+
+  function renderResult() {
+    stage.innerHTML = '';
+
+    const percent = score / 100;
+    let stars = 0;
+    let headline = STRINGS.minigame.resultTryAgain;
+    if (percent >= 0.9) { stars = 3; headline = STRINGS.minigame.resultGreat; }
+    else if (percent >= 0.6) { stars = 2; headline = STRINGS.minigame.resultGood; }
+    else if (percent > 0) { stars = 1; headline = STRINGS.minigame.resultGood; }
+
+    const { wasPlayed, isRecord } = Storage.markMinigamePlayed(game.id, score);
+    const base = Math.round(score * CONFIG.points.minigamePointsPerScoreUnit);
+    let points = wasPlayed ? Math.round(base * CONFIG.points.repeatMultiplier) : base;
+    if (isRecord) points += CONFIG.points.minigameRecordBonus;
+    const postcardUnlocked = game.postcardId ? Storage.unlockPostcard(game.postcardId) : false;
+    if (points > 0) Storage.addPoints(points);
+    Sound.points();
+    if (stars > 0) spawnConfetti(stage, { count: 16 });
+
+    const result = el('div', 'msc-minigame-result');
+    result.appendChild(createRibbon(headline));
+    result.appendChild(createStarRow(stars));
+    if (isRecord) {
+      const rec = el('div', 'msc-minigame-record');
+      rec.appendChild(el('span', 'msc-minigame-record__icon', { html: icon('star') }));
+      rec.appendChild(el('span', null, { text: STRINGS.minigame.newRecord }));
+      result.appendChild(rec);
+    }
+    const pointsLine = el('div', 'msc-minigame-result__points');
+    pointsLine.appendChild(el('span', 'msc-minigame-result__points-icon', { html: icon('coin') }));
+    pointsLine.appendChild(el('span', null, { text: STRINGS.minigame.pointsEarned(points) }));
+    result.appendChild(pointsLine);
+    if (wasPlayed) result.appendChild(el('p', 'msc-minigame-result__repeat-note', { text: STRINGS.minigame.repeatNote }));
+
+    if (postcardUnlocked) {
+      const postcard = el('div', 'msc-quiz-postcard');
+      postcard.appendChild(el('span', 'msc-quiz-postcard__icon', { html: icon('postcard') }));
+      postcard.appendChild(el('span', null, { text: STRINGS.minigame.postcardUnlocked }));
+      result.appendChild(postcard);
+    }
+
+    const actions = el('div', 'msc-dialog-actions');
+    const again = createButton({ label: STRINGS.minigame.playAgain, variant: 'orange', size: 'l' });
+    const done = createButton({ label: STRINGS.minigame.back, variant: 'green', size: 'l' });
+    again.button.addEventListener('click', () => renderCountdown());
+    done.button.addEventListener('click', () => closeAll());
+    actions.appendChild(again.el);
+    actions.appendChild(done.el);
+    result.appendChild(actions);
+    stage.appendChild(result);
+    done.button.focus();
+
+    if (points > 0 && pointsBadgeEl) {
+      const source = result.querySelector('.msc-minigame-result__points-icon');
+      flyCoinsTo(source, pointsBadgeEl, Math.min(8, Math.max(3, Math.round(points / 5)))).then(() => {
+        onPointsChanged?.(Storage.get().points);
+      });
+    } else {
+      onPointsChanged?.(Storage.get().points);
+    }
+  }
+
+  modal.open();
+  renderIntro();
+}
+
+  return { openMinigame };
+})();
+
 __mod["engine/illustratedBootstrap.js"] = (function () {
 const { IllustratedScene } = __mod["engine/illustratedScene.js"];
 const { Input } = __mod["engine/input.js"];
@@ -4972,8 +5483,10 @@ const { createTitleScreen } = __mod["ui/titleScreen.js"];
 const { createOnboarding } = __mod["ui/onboarding.js"];
 const { openMenu } = __mod["ui/menu.js"];
 const { openQuiz } = __mod["ui/quizScreen.js"];
+const { openMinigame } = __mod["ui/minigameScreen.js"];
 const { createToastLayer, createPanel, createButton, createModal } = __mod["ui/components.js"];
 const { QUIZZES } = __mod["data/quizzes.js"];
+const { MINIGAMES } = __mod["data/minigames.js"];
 // Точка входа нового движка (готовые иллюстрации). Два режима:
 //   runGame()            — полный игровой цикл: титул -> обучение -> HUD ->
 //                           сцены с настоящими переходами по дверям. Это то,
@@ -4981,6 +5494,8 @@ const { QUIZZES } = __mod["data/quizzes.js"];
 //   runIllustratedTest() — одна сцена без титула/HUD, только мир + DOM-окна
 //                          "Да/Нет"/факт — используется для QA разметки
 //                          конкретной локации (?scene=rome и т.п.).
+
+
 
 
 
@@ -5227,15 +5742,20 @@ async function runGame() {
         return;
       }
       if (item.type === 'minigame') {
-        // Настоящий каркас мини-игр — следующий шаг этого этапа; пока просто
-        // засчитываем прохождение, чтобы HUD было на чём проверить.
-        const { wasPlayed } = Storage.markMinigamePlayed(item.id, 10);
-        const amount = Math.round(CONFIG.points.minigamePointsPerScoreUnit * 10);
-        if (!wasPlayed) Storage.addPoints(amount);
-        Sound.points();
-        hud?.setPoints(Storage.get().points);
-        hud?.setProgress(computeProgress());
-        toastLayer.show(`+${amount} баллов`, { iconName: 'coin' });
+        const game = MINIGAMES[item.id];
+        if (!game) {
+          toastLayer.show('Эта игра появится позже', { iconName: 'info' });
+          return;
+        }
+        scene.blocked = true;
+        hud?.setDimmed(true);
+        openMinigame({
+          container: uiLayer,
+          game,
+          pointsBadgeEl: hud?.pointsBadge,
+          onPointsChanged: (n) => { hud?.setPoints(n); hud?.setProgress(computeProgress()); },
+          onFinish: () => { scene.blocked = false; hud?.setDimmed(false); },
+        });
       }
     },
     async onSceneDoor(door) {

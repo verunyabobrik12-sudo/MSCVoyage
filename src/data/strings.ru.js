@@ -67,6 +67,27 @@ export const STRINGS = {
     repeatNote: 'Повторное прохождение: 20% баллов',
   },
 
+  minigame: {
+    start: 'Начать',
+    ready: 'Приготовьтесь!',
+    go: 'Старт!',
+    pauseTitle: 'Пауза',
+    resume: 'Продолжить',
+    exitConfirm: 'Выйти из игры? Баллы не будут начислены.',
+    simulate: 'Симулировать результат',
+    placeholderNote: 'Геймплей появится на следующем этапе — пока можно проверить экраны.',
+    score: 'Очки',
+    resultGreat: 'Отлично!',
+    resultGood: 'Хорошая работа!',
+    resultTryAgain: 'Попробуйте ещё',
+    pointsEarned: (n) => `Вы заработали ${n} баллов`,
+    repeatNote: 'Повторное прохождение: 20% баллов',
+    newRecord: 'Новый рекорд!',
+    postcardUnlocked: 'Открытка получена!',
+    playAgain: 'Ещё раз',
+    back: 'Вернуться',
+  },
+
   doors: {
     yes: 'Да',
     no: 'Нет',

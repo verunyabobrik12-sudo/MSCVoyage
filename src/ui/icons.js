@@ -27,7 +27,7 @@ function wrap(inner, gradDefs, viewBox = '0 0 32 32') {
 
 const STROKE = TOKENS.ink;
 
-/** @param {string} name одно из: star, coin, lock, check, bulb, map, postcard, shop, sound, soundOff, question, exclaim, info, liner, clock */
+/** @param {string} name одно из: star, coin, lock, check, heart, bulb, map, postcard, shop, sound, soundOff, question, exclaim, info, liner, clock */
 export function icon(name, opts = {}) {
   const fn = ICONS[name];
   if (!fn) throw new Error(`Неизвестная иконка: ${name}`);
@@ -72,6 +72,15 @@ const ICONS = {
     return wrap(
       `<circle cx="16" cy="16" r="13" fill="url(#${g.id})" stroke="${STROKE}" stroke-width="2" />
        <path d="M10 16.5l4 4 8-9" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" />`,
+      [g.def],
+    );
+  },
+
+  heart: () => {
+    const g = grad('#FF9B8F', TOKENS.redDark);
+    return wrap(
+      `<path d="M16 27.5S4 20.3 4 12.3C4 8 7.2 5 11 5c2.2 0 4 1 5 2.7C17 6 18.8 5 21 5c3.8 0 7 3 7 7.3 0 8-12 15.2-12 15.2z" fill="url(#${g.id})" stroke="${STROKE}" stroke-width="2" stroke-linejoin="round" />
+       <ellipse cx="10.5" cy="11" rx="2.6" ry="1.6" fill="#fff" opacity="0.5" />`,
       [g.def],
     );
   },

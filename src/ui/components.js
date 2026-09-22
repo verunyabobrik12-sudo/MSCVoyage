@@ -238,6 +238,21 @@ export function createStarRow(count, { max = 3, animate = true } = {}) {
   return root;
 }
 
+/** Ряд сердечек-жизней для HUD мини-игры (раздел 3.6). */
+export function createHeartsRow(lives, max = lives) {
+  const root = el('div', 'msc-hearts-row');
+  const hearts = [];
+  for (let i = 0; i < max; i++) {
+    const heart = el('span', i < lives ? 'msc-heart is-filled' : 'msc-heart is-empty', { html: icon('heart') });
+    root.appendChild(heart);
+    hearts.push(heart);
+  }
+  function setLives(n) {
+    hearts.forEach((h, i) => h.className = i < n ? 'msc-heart is-filled' : 'msc-heart is-empty');
+  }
+  return { el: root, setLives };
+}
+
 /** Табличка с иконкой звезды-монеты и "+" справа — открывает магазин (раздел 2/3.3). */
 export function createPointsBadge(points, { onClick } = {}) {
   const root = el('button', 'msc-points-badge', { type: 'button', 'aria-label': 'Баллы — открыть магазин' });

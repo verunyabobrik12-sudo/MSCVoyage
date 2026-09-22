@@ -19,8 +19,10 @@ import { createTitleScreen } from '../ui/titleScreen.js';
 import { createOnboarding } from '../ui/onboarding.js';
 import { openMenu } from '../ui/menu.js';
 import { openQuiz } from '../ui/quizScreen.js';
+import { openMinigame } from '../ui/minigameScreen.js';
 import { createToastLayer, createPanel, createButton, createModal } from '../ui/components.js';
 import { QUIZZES } from '../data/quizzes.js';
+import { MINIGAMES } from '../data/minigames.js';
 
 const KNOWN_SCENES = new Set(['cabin', 'corridor', 'restaurant', 'pool', 'rome']);
 
@@ -251,15 +253,20 @@ export async function runGame() {
         return;
       }
       if (item.type === 'minigame') {
-        // Настоящий каркас мини-игр — следующий шаг этого этапа; пока просто
-        // засчитываем прохождение, чтобы HUD было на чём проверить.
-        const { wasPlayed } = Storage.markMinigamePlayed(item.id, 10);
-        const amount = Math.round(CONFIG.points.minigamePointsPerScoreUnit * 10);
-        if (!wasPlayed) Storage.addPoints(amount);
-        Sound.points();
-        hud?.setPoints(Storage.get().points);
-        hud?.setProgress(computeProgress());
-        toastLayer.show(`+${amount} баллов`, { iconName: 'coin' });
+        const game = MINIGAMES[item.id];
+        if (!game) {
+          toastLayer.show('Эта игра появится позже', { iconName: 'info' });
+          return;
+        }
+        scene.blocked = true;
+        hud?.setDimmed(true);
+        openMinigame({
+          container: uiLayer,
+          game,
+          pointsBadgeEl: hud?.pointsBadge,
+          onPointsChanged: (n) => { hud?.setPoints(n); hud?.setProgress(computeProgress()); },
+          onFinish: () => { scene.blocked = false; hud?.setDimmed(false); },
+        });
       }
     },
     async onSceneDoor(door) {

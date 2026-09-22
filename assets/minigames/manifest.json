@@ -1,0 +1,63 @@
+﻿{
+    "ball":  {
+                 "bg":  "ball/bg.png",
+                 "sprites":  [
+                                 "ball_main",
+                                 "paddle",
+                                 "bonus_star",
+                                 "bonus_coin",
+                                 "bonus_heart",
+                                 "trap_splash",
+                                 "trap_drop",
+                                 "trap_urchin",
+                                 "extra_ball_alt1",
+                                 "extra_chest_locked",
+                                 "extra_ball_alt2",
+                                 "extra_trap_urchin_dup"
+                             ]
+             },
+    "catch":  {
+                  "bg":  "catch/bg.png",
+                  "playerFallback":  true,
+                  "items":  [
+                                "pizza_italian",
+                                "pasta_italian",
+                                "parmesan_italian",
+                                "olives_italian",
+                                "tiramisu_italian",
+                                "tomato_italian",
+                                "sushi_asian",
+                                "espresso_italian",
+                                "basil_italian",
+                                "ramen_asian",
+                                "dimsum_asian",
+                                "chopsticks_asian"
+                            ]
+              },
+    "runner":  {
+                   "heroRunFrames":  [
+                                         "run_1",
+                                         "run_2",
+                                         "run_3",
+                                         "run_4",
+                                         "jump_up",
+                                         "run_5",
+                                         "run_6",
+                                         "run_7",
+                                         "walk_alt_1",
+                                         "walk_alt_2",
+                                         "walk_alt_3",
+                                         "walk_alt_4",
+                                         "stumble",
+                                         "back_view_1",
+                                         "back_view_2",
+                                         "back_view_3"
+                                     ],
+                   "obstaclesCount":  11,
+                   "layers":  [
+                                  "far",
+                                  "mid",
+                                  "ground"
+                              ]
+               }
+}

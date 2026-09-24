@@ -5,7 +5,7 @@
   "size": [848, 1264],
   "spawn": [430, 1050],
   "walkable": [
-    [[40, 50], [805, 50], [825, 1240], [25, 1240]]
+    [[175, 275], [675, 275], [675, 1095], [175, 1095]]
   ],
   "blockers": [
     { "id": "sofaNook", "polygon": [[600, 335], [800, 335], [800, 535], [600, 535]] },
@@ -18,7 +18,7 @@
       "id": "toCabin",
       "target": "cabin",
       "marker": [430, 1105],
-      "trigger": { "shape": "rect", "x": 320, "y": 1090, "w": 220, "h": 60 },
+      "trigger": { "shape": "rect", "x": 330, "y": 1040, "w": 200, "h": 55 },
       "label": "Войти в свою каюту (7012)?",
       "spawnAt": [430, 1050]
     },
@@ -26,7 +26,7 @@
       "id": "toRomeTrap",
       "target": "rome",
       "marker": [375, 180],
-      "trigger": { "shape": "rect", "x": 300, "y": 230, "w": 150, "h": 60 },
+      "trigger": { "shape": "rect", "x": 290, "y": 275, "w": 170, "h": 55 },
       "label": "Выйти на трап, в город?",
       "spawnAt": [375, 320]
     },
@@ -34,7 +34,7 @@
       "id": "toElevators",
       "target": "elevators",
       "marker": [95, 260],
-      "trigger": { "shape": "rect", "x": 40, "y": 300, "w": 100, "h": 80 },
+      "trigger": { "shape": "rect", "x": 175, "y": 290, "w": 70, "h": 140 },
       "label": "Пройти к лифтам?",
       "spawnAt": [220, 340]
     },
@@ -42,7 +42,7 @@
       "id": "toPool",
       "target": "pool",
       "marker": [95, 940],
-      "trigger": { "shape": "rect", "x": 40, "y": 910, "w": 110, "h": 90 },
+      "trigger": { "shape": "rect", "x": 175, "y": 880, "w": 70, "h": 150 },
       "label": "Пройти к бассейну?",
       "spawnAt": [220, 960]
     },
@@ -50,9 +50,9 @@
       "id": "toRestaurant",
       "target": "restaurant",
       "marker": [715, 780],
-      "trigger": { "shape": "rect", "x": 680, "y": 800, "w": 100, "h": 80 },
+      "trigger": { "shape": "rect", "x": 605, "y": 700, "w": 70, "h": 200 },
       "label": "Пройти в ресторан?",
-      "spawnAt": [600, 840]
+      "spawnAt": [580, 820]
     }
   ]
 }

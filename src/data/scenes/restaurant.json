@@ -3,11 +3,12 @@
   "label": "Ресторан",
   "image": "assets/scenes/restaurant_bg.png",
   "size": [848, 1264],
-  "spawn": [425, 1130],
+  "spawn": [425, 1010],
   "walkable": [
     [[40, 60], [810, 60], [810, 1230], [40, 1230]]
   ],
   "blockers": [
+    { "id": "doorFrame", "polygon": [[330, 1045], [515, 1045], [515, 1240], [330, 1240]] },
     { "id": "buffetCounter", "polygon": [[40, 60], [630, 60], [630, 230], [40, 230]] },
     { "id": "cheeseCart", "polygon": [[40, 230], [190, 230], [190, 410], [40, 410]] },
     { "id": "stoveArea", "polygon": [[630, 60], [810, 60], [810, 310], [630, 310]] },
@@ -63,9 +64,9 @@
       "id": "toCorridor",
       "target": "corridor",
       "marker": [425, 1105],
-      "trigger": { "shape": "rect", "x": 340, "y": 1090, "w": 170, "h": 60 },
+      "trigger": { "shape": "rect", "x": 340, "y": 990, "w": 170, "h": 55 },
       "label": "Выйти в коридор?",
-      "spawnAt": [425, 1130]
+      "spawnAt": [425, 1010]
     }
   ]
 }

@@ -3,11 +3,12 @@
   "label": "Бассейн",
   "image": "assets/scenes/pool_bg.png",
   "size": [848, 1264],
-  "spawn": [425, 1190],
+  "spawn": [425, 1010],
   "walkable": [
     [[40, 170], [810, 170], [810, 1230], [40, 1230]]
   ],
   "blockers": [
+    { "id": "doorFrame", "polygon": [[330, 1045], [515, 1045], [515, 1240], [330, 1240]] },
     { "id": "poolWater", "polygon": [[235, 290], [615, 290], [615, 930], [235, 930]] },
     { "id": "leftFurniture", "polygon": [[40, 225], [195, 225], [195, 855], [40, 855]] },
     { "id": "rightFurnitureTop", "polygon": [[635, 225], [790, 225], [790, 495], [635, 495]] },
@@ -55,9 +56,9 @@
       "id": "toCorridor",
       "target": "corridor",
       "marker": [425, 1160],
-      "trigger": { "shape": "rect", "x": 340, "y": 1150, "w": 170, "h": 70 },
+      "trigger": { "shape": "rect", "x": 340, "y": 990, "w": 170, "h": 55 },
       "label": "Вернуться в коридор?",
-      "spawnAt": [425, 1190]
+      "spawnAt": [425, 1010]
     }
   ]
 }

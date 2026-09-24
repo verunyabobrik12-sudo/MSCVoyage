@@ -63,7 +63,8 @@ export const Storage = {
     const prev = state.completedMinigames[gameId];
     const wasPlayed = !!prev;
     const best = prev ? Math.max(prev.best, score) : score;
-    const isRecord = !prev || score > prev.best;
+    // нулевой результат — не рекорд (иначе первая же проигранная игра давала бонус)
+    const isRecord = score > 0 && (!prev || score > prev.best);
     state.completedMinigames = { ...state.completedMinigames, [gameId]: { best, playedOnce: true } };
     save();
     return { wasPlayed, isRecord };

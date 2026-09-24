@@ -35,6 +35,10 @@
     position: relative;
     width: 100%;
     height: 100%;
+    /* Контейнер для @container phone в src/ui/theme.js: вёрстка интерфейса
+       подстраивается под ширину самой игры, а не окна. На десктопе рамка
+       бывает узкой при широком окне (ширина считается от высоты). */
+    container: phone / inline-size;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -697,6 +701,7 @@ const MINIGAMES = {
     avoidText: 'Избегайте не итальянской кухни',
     rules: 'Итальянская еда падает сверху — ловите её корзиной. Другая кухня отнимает жизнь.',
     lives: 3,
+    durationSec: 45,
     postcardId: 'restaurant',
   },
   ballMinigame: {
@@ -1909,8 +1914,11 @@ const DESIGN_TOKENS_CSS = `
     --msc-fade-ms: 250ms;
   }
 
-  @media (max-width: 480px) {
-    :root {
+  /* @container phone, не @media: узкой бывает и рамка игры в широком окне
+     десктопа (низкое окно -> ширина рамки считается от высоты). Переменные —
+     на #ui-layer: у :root нет контейнера-предка. */
+  @container phone (max-width: 480px) {
+    #ui-layer {
       --msc-fs-body: 14px;
       --msc-fs-body-m: 16px;
       --msc-fs-title: 19px;
@@ -2082,7 +2090,10 @@ const DESIGN_TOKENS_CSS = `
     paint-order: stroke fill;
     text-shadow: 0 2px 0 rgba(0,0,0,.2);
     white-space: normal;
-    word-break: break-word;
+    /* переносить только между словами — рвать слово («Вернутьс/я») нельзя;
+       если слово не помещается, кнопка уменьшает шрифт (см. .msc-dialog-actions) */
+    overflow-wrap: normal;
+    word-break: normal;
   }
   .msc-btn__icon { position: relative; z-index: 1; width: 22px; height: 22px; flex: none; }
   .msc-btn::after {
@@ -2156,7 +2167,7 @@ const DESIGN_TOKENS_CSS = `
     z-index: 5;
     font-size: 20px;
   }
-  @media (max-width: 480px) {
+  @container phone (max-width: 480px) {
     .msc-close { top: -14px; right: -14px; }
   }
 
@@ -2446,6 +2457,13 @@ const DESIGN_TOKENS_CSS = `
   }
   .msc-dialog-actions .msc-btn-wrap { flex: 1 1 120px; max-width: 220px; }
   .msc-dialog-actions .msc-btn { width: 100%; }
+  /* Крупные кнопки в ряду действий (результат викторины/мини-игры): в узкой
+     рамке «Вернуться» не влезало в 23px с отступами по 30px. Шрифт — от
+     ширины рамки игры (cqi = % ширины контейнера phone), не меньше 16px. */
+  .msc-dialog-actions .msc-btn--l {
+    padding: 0 12px;
+    font-size: clamp(16px, 4.6cqi, var(--msc-fs-title));
+  }
 
   /* Универсальный класс pop-анимации для элементов вне Modal (например, облачко факта). */
   .msc-pop { animation: msc-pop-in var(--msc-pop-ms) cubic-bezier(.2,1.6,.4,1); }
@@ -2457,8 +2475,10 @@ const DESIGN_TOKENS_CSS = `
   .msc-info-bubble {
     position: absolute;
     top: 8%;
-    left: 50%;
-    transform: translateX(-50%);
+    /* центр без transform: анимация .msc-pop сама пишет transform (scale) и
+       затирала translateX(-50%) — облачко выезжало сбоку и дёргалось */
+    left: 0; right: 0; margin-inline: auto;
+    width: fit-content;
     max-width: min(360px, 82%);
     pointer-events: auto;
     cursor: pointer;
@@ -2503,7 +2523,7 @@ const DESIGN_TOKENS_CSS = `
      в ширину — правая группа кнопок вылезала за край рамки (раздел 3.3:
      HUD не должен обрезаться). Сужаем прогресс-бар и зазоры, не трогая
      размер самих кнопок (должны остаться ≥44×44 CSS px). */
-  @media (max-width: 480px) {
+  @container phone (max-width: 480px) {
     .msc-hud-progress-wrap { width: 72px; }
     .msc-hud-portrait-wrap { gap: 6px; }
     .msc-hud-top-right { gap: 5px; }
@@ -2523,7 +2543,8 @@ const DESIGN_TOKENS_CSS = `
   .msc-hud-bottom {
     position: absolute;
     left: 10px; right: 10px; bottom: 10px;
-    max-height: 12%;
+    /* без max-height: при узкой рамке текст цели переносится на 3-4 строки,
+       и с потолком высоты вылезал из панели поверх кнопок */
     min-height: 64px;
     display: flex;
     align-items: center;
@@ -2557,67 +2578,25 @@ const DESIGN_TOKENS_CSS = `
   .msc-hud-actions .msc-icon-btn__circle { width: 46px; height: 46px; }
   .msc-hud-actions .msc-icon-btn__circle svg { width: 24px; height: 24px; }
   .msc-hud-actions .msc-icon-btn__label { font-size: 11px; }
+  /* Совсем узкая рамка (низкое окно десктопа, маленький телефон): текст цели
+     мельче, кнопки плотнее — чтобы цель не растягивала панель на пол-экрана. */
+  @container phone (max-width: 400px) {
+    .msc-hud-bottom { padding: 6px 10px; gap: 8px; }
+    .msc-hud-goal { gap: 8px; }
+    .msc-hud-goal__icon { width: 28px; height: 28px; }
+    .msc-hud-goal__text { font-size: 12.5px; line-height: 1.2; }
+    .msc-hud-actions { gap: 3px; }
+    .msc-hud-actions .msc-icon-btn__circle { width: 44px; height: 44px; }
+    .msc-hud-actions .msc-icon-btn__label { font-size: 10px; }
+  }
 
   /* ============================== ТИТУЛЬНЫЙ ЭКРАН ============================== */
   .msc-title-screen {
     position: absolute; inset: 0;
     pointer-events: auto;
     overflow: hidden;
-    background: linear-gradient(180deg, #7FCBEA 0%, #BFE8F2 42%, #2F6FB5 100%);
-  }
-  .msc-title-cloud {
-    position: absolute;
-    background: #fff;
-    border-radius: 50%;
-    opacity: .85;
-    filter: blur(0.5px);
-  }
-  .msc-title-sea {
-    position: absolute; left: 0; right: 0; bottom: 0; height: 46%;
-    background: linear-gradient(180deg, #2F6FB5, #1C4E82);
-  }
-  .msc-title-wave {
-    position: absolute; left: -220px; width: calc(100% + 440px); height: 34px;
-    background-repeat: repeat-x;
-    background-size: 220px 34px;
-  }
-  .msc-title-wave--back {
-    top: -22px;
-    opacity: .55;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='34' viewBox='0 0 220 34'><path d='M0 17 Q 55 2 110 17 T 220 17 V34 H0 Z' fill='%234A8FD8'/></svg>");
-    animation: msc-wave-drift 10s linear infinite;
-  }
-  .msc-title-wave--front {
-    top: -8px;
-    opacity: .85;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='34' viewBox='0 0 220 34'><path d='M0 20 Q 55 6 110 20 T 220 20 V34 H0 Z' fill='%232F6FB5'/></svg>");
-    animation: msc-wave-drift 6.5s linear infinite reverse;
-  }
-  @keyframes msc-wave-drift {
-    from { background-position-x: 0; }
-    to { background-position-x: -220px; }
-  }
-  .msc-title-liner {
-    position: absolute;
-    bottom: 43%;
-    right: 8%;
-    width: 40%;
-    max-width: 220px;
-    animation: msc-liner-rock 4.5s ease-in-out infinite;
-    filter: drop-shadow(0 10px 14px rgba(0,0,0,.25));
-  }
-  @keyframes msc-liner-rock {
-    0%, 100% { transform: rotate(-1.4deg) translateY(0); }
-    50% { transform: rotate(1.4deg) translateY(-6px); }
-  }
-  .msc-title-hero {
-    position: absolute;
-    bottom: 26%;
-    left: 8%;
-    width: 128px;
-    height: 270px;
-    background-repeat: no-repeat;
-    filter: drop-shadow(0 10px 10px rgba(0,0,0,.3));
+    /* готовая иллюстрация; цвет — на время загрузки картинки */
+    background: #9ED3EE url("assets/title/title_bg.jpg") center / cover no-repeat;
   }
   .msc-title-content {
     position: absolute; inset: 0;
@@ -2822,6 +2801,15 @@ const DESIGN_TOKENS_CSS = `
   }
   .msc-minigame-stage:has(.msc-minigame-hud) { padding-top: 4px; }
   .msc-minigame-placeholder { margin-top: 40px; }
+  /* Игровое поле — занимает всё место под HUD; canvas размечается по нему. */
+  .msc-minigame-stage:has(.msc-minigame-field) { overflow: hidden; gap: 10px; }
+  .msc-minigame-field {
+    flex: 1; min-height: 0; width: 100%; position: relative;
+    border-radius: 16px; overflow: hidden;
+    border: 3px solid var(--msc-gold);
+    touch-action: none; user-select: none;
+  }
+  .msc-minigame-canvas { position: absolute; inset: 0; display: block; cursor: pointer; }
 
   .msc-minigame-rules { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 420px; }
   .msc-minigame-rule {
@@ -3159,7 +3147,8 @@ const Storage = {
     const prev = state.completedMinigames[gameId];
     const wasPlayed = !!prev;
     const best = prev ? Math.max(prev.best, score) : score;
-    const isRecord = !prev || score > prev.best;
+    // нулевой результат — не рекорд (иначе первая же проигранная игра давала бонус)
+    const isRecord = score > 0 && (!prev || score > prev.best);
     state.completedMinigames = { ...state.completedMinigames, [gameId]: { best, playedOnce: true } };
     save();
     return { wasPlayed, isRecord };
@@ -3353,6 +3342,12 @@ class IllustratedScene {
     this.entryDoorId = entryDoorId;
     this.shownInfoIds.clear();
     this.dismissedIds.clear();
+    // Точка появления может лежать внутри зоны двери (в ресторане — прямо в
+    // дверном проёме). Одного таймера мало: постоял 1.5 с — и сразу «Выйти?».
+    // Такие зоны «разряжены», пока героиня из них не выйдет (как после «Нет»).
+    for (const item of this._allTriggerables()) {
+      if (pointInTrigger(sx, sy, item.trigger)) this.dismissedIds.add(item.id);
+    }
     this.blocked = false;
   }
 
@@ -4625,10 +4620,11 @@ __mod["ui/titleScreen.js"] = (function () {
 const { createRibbon, createButton } = __mod["ui/components.js"];
 const { icon } = __mod["ui/icons.js"];
 const { STRINGS } = __mod["data/strings.ru.js"];
-// Титульный экран (раздел 3.1 ТЗ этапа 2). Целиком HTML/CSS/SVG — это не мир
-// игры, а экран, так что весь раздел 0 про "мир на canvas" его не касается:
-// проще и чётче нарисовать код фон/лайнер/облака в DOM, чем городить ещё один
-// canvas поверх основного.
+// Титульный экран (раздел 3.1 ТЗ этапа 2). HTML/CSS поверх canvas: фон —
+// готовая иллюстрация (assets/title/title_bg.jpg, лайнер у берегов Рима),
+// поверх — название и кнопки. Нарисованные кодом облака/волны/лайнер и
+// героиня убраны 2026-09-25: иллюстрация — законченная композиция, героине
+// на ней стоять не на чем (внизу море).
 
 
 
@@ -4645,49 +4641,19 @@ function el(tag, className, attrs = {}) {
   return node;
 }
 
-const CLOUDS = [
-  { top: '8%', left: '10%', w: 90, h: 36 },
-  { top: '14%', left: '55%', w: 130, h: 46 },
-  { top: '6%', left: '72%', w: 70, h: 28 },
-  { top: '20%', left: '30%', w: 60, h: 24 },
-];
-
 /**
- * @param {{container:HTMLElement, hasSave:boolean, muted:boolean, heroSprite:{sheetSrc,frameWidth,frameHeight,sheetWidth,sheetHeight,frameX,frameY}, onPlay:Function, onNewGame:Function, onHowToPlay:Function, onToggleSound:Function}} opts
+ * @param {{container:HTMLElement, hasSave:boolean, muted:boolean, onPlay:Function, onNewGame:Function, onHowToPlay:Function, onToggleSound:Function}} opts
  */
 function createTitleScreen({
   container,
   hasSave = false,
   muted = false,
-  heroSprite,
   onPlay,
   onNewGame,
   onHowToPlay,
   onToggleSound,
 } = {}) {
   const root = el('div', 'msc-title-screen msc-root');
-
-  for (const c of CLOUDS) {
-    const cloud = el('div', 'msc-title-cloud');
-    Object.assign(cloud.style, { top: c.top, left: c.left, width: `${c.w}px`, height: `${c.h}px` });
-    root.appendChild(cloud);
-  }
-
-  root.appendChild(el('div', 'msc-title-sea'));
-  root.appendChild(el('div', 'msc-title-wave msc-title-wave--back'));
-  root.appendChild(el('div', 'msc-title-wave msc-title-wave--front'));
-
-  const liner = el('div', 'msc-title-liner', { html: icon('liner') });
-  root.appendChild(liner);
-
-  if (heroSprite) {
-    const hero = el('div', 'msc-title-hero');
-    const scale = 128 / heroSprite.frameWidth;
-    hero.style.backgroundImage = `url(${heroSprite.sheetSrc})`;
-    hero.style.backgroundSize = `${heroSprite.sheetWidth * scale}px ${heroSprite.sheetHeight * scale}px`;
-    hero.style.backgroundPosition = `${-heroSprite.frameX * scale}px ${-heroSprite.frameY * scale}px`;
-    root.appendChild(hero);
-  }
 
   const soundBtn = el('button', 'msc-hud-round-btn msc-btn msc-title-sound', { type: 'button', 'aria-label': 'Звук' });
   soundBtn.innerHTML = icon(muted ? 'soundOff' : 'sound');
@@ -5150,6 +5116,361 @@ function openQuiz({ container, quiz, postcardId, pointsBadgeEl, onPointsChanged,
   return { openQuiz };
 })();
 
+__mod["minigames/catchFood.js"] = (function () {
+
+// Геймплей мини-игры «Поймай итальянское» (Ресторан). Canvas-поле внутри
+// каркаса src/ui/minigameScreen.js: каркас ведёт таймер, паузу, HUD и
+// результат, а здесь — только падающая еда, героиня с подносом и столкновения.
+//
+// Героиня — тот же лист hero_girl, что и в сценах (catch/player.jfif — мужчина-
+// официант, не подключён), поднос рисуется процедурно поверх кадра.
+// Базилик исключён: при хромакее листья частично вырезались вместе с зелёным фоном.
+
+const ITALIAN = ['pizza_italian', 'pasta_italian', 'parmesan_italian', 'olives_italian',
+  'tiramisu_italian', 'tomato_italian', 'espresso_italian'];
+const FOREIGN = ['sushi_asian', 'ramen_asian', 'dimsum_asian', 'chopsticks_asian'];
+
+const POINTS_PER_CATCH = 10;
+
+// Кривые сложности по доле прошедшего раунда p = 0..1.
+const SPAWN_INTERVAL = [1.0, 0.45]; // сек между появлениями
+const FALL_SPEED = [0.30, 0.70]; // доля высоты поля в секунду
+const FOREIGN_CHANCE = [0.25, 0.40];
+
+const lerp = (a, b, t) => a + (b - a) * t;
+
+const CACHE_BUST = `v=${Date.now()}`;
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = `${src}?${CACHE_BUST}`;
+  });
+}
+
+let assetsPromise = null;
+/** Грузит фон, предметы и лист героини один раз на всю сессию. */
+function preloadCatchFood() {
+  if (!assetsPromise) {
+    assetsPromise = (async () => {
+      const heroMeta = await fetch(`assets/sprites/hero_girl.json?${CACHE_BUST}`).then((r) => r.json());
+      const [bg, hero, ...items] = await Promise.all([
+        loadImage('assets/minigames/catch/bg.png'),
+        loadImage(`assets/sprites/${heroMeta.file}`),
+        ...ITALIAN.concat(FOREIGN).map((n) => loadImage(`assets/minigames/catch/items/${n}.png`)),
+      ]);
+      const itemImages = {};
+      ITALIAN.concat(FOREIGN).forEach((n, i) => { itemImages[n] = items[i]; });
+      return { bg, hero, heroMeta, itemImages };
+    })();
+    assetsPromise.catch(() => { assetsPromise = null; }); // дать шанс повторить загрузку
+  }
+  return assetsPromise;
+}
+
+/**
+ * @param {{host:HTMLElement, onScore:(n:number)=>void, onLives:(n:number)=>void,
+ *          onGameOver:()=>void, lives:number}} opts
+ */
+function createCatchFood({ host, onScore, onLives, onGameOver, lives }) {
+  const canvas = document.createElement('canvas');
+  canvas.className = 'msc-minigame-canvas';
+  host.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+
+  let assets = null;
+  let w = 0;
+  let h = 0;
+  let dpr = 1;
+
+  const state = {
+    lives,
+    score: 0,
+    caught: 0,
+    missed: 0, // итальянская еда, упавшая мимо (без штрафа, но влияет на итоговую долю)
+    progress: 0,
+    spawnTimer: 0.4,
+    items: [],
+    popups: [], // всплывающие "+10" / вспышки
+    heroX: 0.5, // доля ширины
+    targetX: null, // куда тянет указатель (доля ширины), null — не тянет
+    keyDir: 0,
+    hurtT: 0, // красная вспышка после чужой кухни
+    over: false,
+  };
+
+  // --- размеры ---------------------------------------------------------------
+  function resize() {
+    const rect = host.getBoundingClientRect();
+    dpr = window.devicePixelRatio || 1;
+    w = Math.max(1, rect.width);
+    h = Math.max(1, rect.height);
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
+    render();
+  }
+  const ro = new ResizeObserver(resize);
+  ro.observe(host);
+
+  function heroSize() {
+    const heroH = Math.min(h * 0.3, w * 0.55);
+    const meta = assets?.heroMeta;
+    const heroW = meta ? heroH * (meta.frameWidth / meta.frameHeight) : heroH * 0.47;
+    return { heroW, heroH };
+  }
+  function itemSize() { return Math.max(40, Math.min(78, w * 0.15)); }
+  function trayGeom() {
+    const { heroW, heroH } = heroSize();
+    const feetY = h - 6;
+    return {
+      cx: state.heroX * w,
+      y: feetY - heroH * 0.5, // на уровне груди — героиня держит поднос перед собой
+      halfW: heroW * 0.75,
+    };
+  }
+
+  // --- управление ------------------------------------------------------------
+  function pointerToTarget(e) {
+    const rect = canvas.getBoundingClientRect();
+    state.targetX = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+  }
+  function onPointerDown(e) { host.setPointerCapture?.(e.pointerId); pointerToTarget(e); }
+  function onPointerMove(e) { if (e.pointerType === 'mouse' || e.buttons) pointerToTarget(e); }
+  function onPointerLeave(e) { if (e.pointerType === 'mouse') state.targetX = null; }
+  const held = new Set();
+  function onKey(e) {
+    const left = e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A' || e.key === 'ф' || e.key === 'Ф';
+    const right = e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D' || e.key === 'в' || e.key === 'В';
+    if (!left && !right) return;
+    e.preventDefault();
+    const k = left ? 'L' : 'R';
+    if (e.type === 'keydown') held.add(k); else held.delete(k);
+    state.keyDir = (held.has('R') ? 1 : 0) - (held.has('L') ? 1 : 0);
+    if (state.keyDir) state.targetX = null; // клавиатура перебивает указатель
+  }
+  // на host, а не на canvas — чтобы срабатывал и тап по рамке поля у самого края
+  host.addEventListener('pointerdown', onPointerDown);
+  host.addEventListener('pointermove', onPointerMove);
+  host.addEventListener('pointerleave', onPointerLeave);
+  window.addEventListener('keydown', onKey);
+  window.addEventListener('keyup', onKey);
+
+  // --- логика ----------------------------------------------------------------
+  function spawn() {
+    const foreign = Math.random() < lerp(FOREIGN_CHANCE[0], FOREIGN_CHANCE[1], state.progress);
+    const pool = foreign ? FOREIGN : ITALIAN;
+    const name = pool[Math.floor(Math.random() * pool.length)];
+    const size = itemSize();
+    const margin = size / 2 / w;
+    state.items.push({
+      name,
+      foreign,
+      x: lerp(margin, 1 - margin, Math.random()), // доля ширины
+      y: -size / 2, // пиксели
+      speed: lerp(FALL_SPEED[0], FALL_SPEED[1], state.progress) * (0.85 + Math.random() * 0.3),
+      rot: (Math.random() - 0.5) * 0.6,
+      spin: (Math.random() - 0.5) * 1.6,
+    });
+  }
+
+  function update(dt, progress) {
+    if (!assets || state.over) return;
+    state.progress = Math.min(1, Math.max(0, progress));
+
+    // движение героини: к указателю или стрелками, с ограничением скорости
+    const maxStep = 1.6 * dt; // доля ширины за кадр
+    if (state.keyDir) {
+      state.heroX += state.keyDir * maxStep;
+    } else if (state.targetX !== null) {
+      const d = state.targetX - state.heroX;
+      state.heroX += Math.sign(d) * Math.min(Math.abs(d), maxStep);
+    }
+    // упор в край — по подносу, он шире фигуры (иначе у края поднос обрезается)
+    const edge = (trayGeom().halfW + 2) / w;
+    state.heroX = Math.min(1 - edge, Math.max(edge, state.heroX));
+
+    // появление еды
+    state.spawnTimer -= dt;
+    if (state.spawnTimer <= 0) {
+      spawn();
+      state.spawnTimer = lerp(SPAWN_INTERVAL[0], SPAWN_INTERVAL[1], state.progress);
+    }
+
+    // Поимка: низ предмета в полосе от подноса до пояса героини, и предмет хоть
+    // как-то перекрывает поднос по горизонтали. Раньше ловилось только само
+    // пересечение линии подноса и только центром — еда, визуально висящая над
+    // героиней, пролетала насквозь (подъехала на кадр позже / центр чуть в стороне).
+    const tray = trayGeom();
+    const size = itemSize();
+    const band = Math.max(size * 0.6, heroSize().heroH * 0.25);
+    for (let i = state.items.length - 1; i >= 0; i--) {
+      const it = state.items[i];
+      it.y += it.speed * h * dt;
+      it.rot += it.spin * dt;
+      const bottom = it.y + size * 0.35;
+      const px = it.x * w;
+      const inBand = bottom >= tray.y && bottom <= tray.y + band;
+      if (inBand && Math.abs(px - tray.cx) <= tray.halfW + size * 0.4) {
+        state.items.splice(i, 1);
+        if (it.foreign) {
+          state.lives -= 1;
+          state.hurtT = 0.35;
+          state.popups.push({ kind: 'bad', x: px, y: tray.y - 10, t: 0 });
+          onLives?.(state.lives);
+          if (state.lives <= 0) { state.over = true; onGameOver?.(); return; }
+        } else {
+          state.caught += 1;
+          state.score += POINTS_PER_CATCH;
+          state.popups.push({ kind: 'good', x: px, y: tray.y - 10, t: 0 });
+          onScore?.(state.score);
+        }
+        continue;
+      }
+      if (it.y - size / 2 > h) {
+        state.items.splice(i, 1);
+        if (!it.foreign) state.missed += 1;
+      }
+    }
+
+    for (let i = state.popups.length - 1; i >= 0; i--) {
+      state.popups[i].t += dt;
+      if (state.popups[i].t > 0.8) state.popups.splice(i, 1);
+    }
+    if (state.hurtT > 0) state.hurtT -= dt;
+    render();
+  }
+
+  // --- отрисовка -------------------------------------------------------------
+  function drawCover(img) {
+    // заполнить поле, прижав к низу — пол ресторана всегда виден под героиней
+    const scale = Math.max(w / img.width, h / img.height);
+    const dw = img.width * scale;
+    const dh = img.height * scale;
+    ctx.drawImage(img, (w - dw) / 2, h - dh, dw, dh);
+  }
+
+  function drawHero() {
+    const { hero, heroMeta } = assets;
+    const { heroW, heroH } = heroSize();
+    // один статичный кадр «лицом вперёд» — анимация ходьбы на месте мигала
+    const row = heroMeta.directions.down;
+    const frame = 0;
+    const cx = state.heroX * w;
+    const feetY = h - 6;
+    // тень
+    ctx.fillStyle = 'rgba(60, 30, 10, 0.25)';
+    ctx.beginPath();
+    ctx.ellipse(cx, feetY - 2, heroW * 0.4, heroW * 0.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.drawImage(hero,
+      frame * heroMeta.frameWidth, row * heroMeta.frameHeight, heroMeta.frameWidth, heroMeta.frameHeight,
+      cx - heroW / 2, feetY - heroH, heroW, heroH);
+  }
+
+  function drawTray() {
+    const t = trayGeom();
+    const rimH = Math.max(5, t.halfW * 0.12);
+    ctx.save();
+    // кромка подноса (вид чуть сверху) + лицевая сторона
+    ctx.fillStyle = '#8a5a2b';
+    ctx.strokeStyle = '#4a2c12';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(t.cx, t.y + rimH * 0.6, t.halfW, rimH * 1.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#c98a4b';
+    ctx.beginPath();
+    ctx.ellipse(t.cx, t.y, t.halfW * 0.96, rimH, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawItem(it, size) {
+    const img = assets.itemImages[it.name];
+    const scale = size / Math.max(img.width, img.height);
+    const dw = img.width * scale;
+    const dh = img.height * scale;
+    ctx.save();
+    ctx.translate(it.x * w, it.y);
+    ctx.rotate(it.rot);
+    ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
+    ctx.restore();
+  }
+
+  function drawPopups() {
+    for (const p of state.popups) {
+      const a = 1 - p.t / 0.8;
+      const y = p.y - p.t * 50;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, a);
+      ctx.font = '900 22px Nunito, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = '#fff';
+      ctx.fillStyle = p.kind === 'good' ? '#2f8a2f' : '#c62828';
+      const text = p.kind === 'good' ? `+${POINTS_PER_CATCH}` : '−1 ♥';
+      ctx.strokeText(text, p.x, y);
+      ctx.fillText(text, p.x, y);
+      ctx.restore();
+    }
+  }
+
+  function render() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.clearRect(0, 0, w, h);
+    if (!assets) return;
+    drawCover(assets.bg);
+    drawHero();
+    drawTray();
+    const size = itemSize();
+    for (const it of state.items) drawItem(it, size);
+    drawPopups();
+    if (state.hurtT > 0) {
+      ctx.fillStyle = `rgba(220, 40, 40, ${0.35 * (state.hurtT / 0.35)})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+  }
+
+  const ready = preloadCatchFood().then((a) => { assets = a; resize(); });
+
+  /**
+   * Итог 0..100 для каркаса (пороги звёзд — 60/90): доля пойманной итальянской
+   * еды. Если жизни кончились раньше таймера, знаменатель достраивается до
+   * полного раунда пропорционально прошедшему времени — иначе ранний проигрыш
+   * с парой удачных поимок выглядел бы как «отлично».
+   */
+  function resultScore() {
+    const resolved = state.caught + state.missed;
+    if (resolved === 0) return 0;
+    const p = Math.max(0.05, state.progress);
+    const denom = state.over && p < 1 ? resolved / p : resolved;
+    return Math.round(Math.min(1, state.caught / denom) * 100);
+  }
+
+  function destroy() {
+    ro.disconnect();
+    host.removeEventListener('pointerdown', onPointerDown);
+    host.removeEventListener('pointermove', onPointerMove);
+    host.removeEventListener('pointerleave', onPointerLeave);
+    window.removeEventListener('keydown', onKey);
+    window.removeEventListener('keyup', onKey);
+    canvas.remove();
+  }
+
+  // _state — только для автотестов (tests/), игра его не читает
+  return { ready, update, resultScore, destroy, _state: state };
+}
+
+  return { preloadCatchFood, createCatchFood };
+})();
+
 __mod["ui/minigameScreen.js"] = (function () {
 const { createPanel, createRibbon, createButton, createModal, createCloseButton, createProgressBar, createStarRow, createHeartsRow, flyCoinsTo, spawnConfetti } = __mod["ui/components.js"];
 const { icon } = __mod["ui/icons.js"];
@@ -5157,10 +5478,11 @@ const { STRINGS } = __mod["data/strings.ru.js"];
 const { CONFIG } = __mod["data/config.js"];
 const { Storage } = __mod["engine/storage.js"];
 const { Sound } = __mod["engine/sound.js"];
+const { createCatchFood, preloadCatchFood } = __mod["minigames/catchFood.js"];
 // Общий каркас экранов мини-игр (раздел 3.6 ТЗ этапа 2): правила -> отсчёт ->
-// HUD с паузой -> результат. Сам геймплей — отдельный следующий этап; здесь
-// вместо него заглушка "Симулировать результат", которая даёт случайный
-// результат раунда, чтобы можно было проверить весь каркас целиком.
+// HUD с паузой -> результат. Геймплей игры подключается через GAMEPLAY
+// (src/minigames/*); у игр без геймплея — заглушка "Симулировать результат"
+// со случайным результатом, чтобы можно было проверить весь каркас целиком.
 // Структура и приёмы (единый modal + перерисовка stage, подтверждение выхода,
 // летящие монеты) — по образцу src/ui/quizScreen.js, только без вопросов.
 
@@ -5171,7 +5493,14 @@ const { Sound } = __mod["engine/sound.js"];
 
 
 
+
 const ROUND_SECONDS = 15; // длительность полосы времени в заглушке геймплея
+
+// id игры -> { create, preload }. create монтирует поле в host и возвращает
+// { ready, update(dt, progress), resultScore(), destroy() }.
+const GAMEPLAY = {
+  catchFoodMinigame: { create: createCatchFood, preload: preloadCatchFood },
+};
 
 function el(tag, className, attrs = {}) {
   const node = document.createElement(tag);
@@ -5191,7 +5520,11 @@ function el(tag, className, attrs = {}) {
 function openMinigame({ container, game, pointsBadgeEl, onPointsChanged, onFinish }) {
   let phase = 'intro'; // intro | countdown | play | pause | result
   let score = 0;
-  let timeLeft = ROUND_SECONDS;
+  const gameplayDef = GAMEPLAY[game.id] || null;
+  const roundSeconds = gameplayDef ? (game.durationSec ?? ROUND_SECONDS) : ROUND_SECONDS;
+  let timeLeft = roundSeconds;
+  let gameplay = null; // текущий экземпляр поля (пересоздаётся на "Ещё раз")
+  gameplayDef?.preload().catch(() => {}); // грузим картинки, пока читают правила
   let rafId = null;
   let lastT = 0;
   let barApi = null;
@@ -5219,8 +5552,15 @@ function openMinigame({ container, game, pointsBadgeEl, onPointsChanged, onFinis
     onRequestClose: requestClose,
   });
 
+  function destroyGameplay() {
+    gameplay?.destroy();
+    gameplay = null;
+    window.__minigame = null;
+  }
+
   function closeAll() {
     stopLoop();
+    destroyGameplay();
     modal.close();
     onFinish?.();
   }
@@ -5288,7 +5628,8 @@ function openMinigame({ container, game, pointsBadgeEl, onPointsChanged, onFinis
   function renderPlay() {
     phase = 'play';
     score = 0;
-    timeLeft = ROUND_SECONDS;
+    timeLeft = roundSeconds;
+    destroyGameplay();
     stage.innerHTML = '';
 
     const hud = el('div', 'msc-minigame-hud');
@@ -5309,6 +5650,24 @@ function openMinigame({ container, game, pointsBadgeEl, onPointsChanged, onFinis
 
     stage.appendChild(hud);
 
+    if (gameplayDef) {
+      const field = el('div', 'msc-minigame-field');
+      stage.appendChild(field);
+      gameplay = gameplayDef.create({
+        host: field,
+        lives: game.lives,
+        onScore: (n) => { scoreValue.textContent = String(n); Sound.click(); },
+        onLives: (n) => { hearts.setLives(n); Sound.wrong(); },
+        onGameOver: () => finishRound(),
+      });
+      window.__minigame = gameplay; // хук для автотестов, как window.__game
+      const current = gameplay;
+      // таймер стартует, только когда картинки загружены — иначе раунд шёл бы вхолостую
+      current.ready.then(() => { if (gameplay === current && phase === 'play') startLoop(); })
+        .catch(() => { if (gameplay === current) finishRound(); });
+      return;
+    }
+
     const placeholder = el('div', 'msc-minigame-placeholder');
     placeholder.appendChild(el('p', 'msc-minigame-placeholder__text', { text: STRINGS.minigame.placeholderNote }));
     const simBtn = createButton({ label: STRINGS.minigame.simulate, variant: 'orange', size: 'l' });
@@ -5322,14 +5681,20 @@ function openMinigame({ container, game, pointsBadgeEl, onPointsChanged, onFinis
   // Общий тик полосы времени + заглушечного счёта, используется и при первом
   // старте раунда, и при возврате из паузы (состояние round не сбрасывается).
   function startLoop() {
+    if (rafId) return; // уже крутится (например, resume раньше загрузки картинок)
     lastT = performance.now();
     function frame(t) {
       const dt = Math.min(0.05, (t - lastT) / 1000);
       lastT = t;
       timeLeft -= dt;
-      barApi.setProgress((Math.max(0, timeLeft) / ROUND_SECONDS) * 100);
-      const scoreValue = stage.querySelector('.msc-minigame-hud__score-value');
-      if (scoreValue) scoreValue.textContent = String(Math.round((ROUND_SECONDS - timeLeft) * 4));
+      barApi.setProgress((Math.max(0, timeLeft) / roundSeconds) * 100);
+      if (gameplay) {
+        gameplay.update(dt, 1 - Math.max(0, timeLeft) / roundSeconds);
+        if (phase !== 'play') return; // onGameOver внутри update уже завершил раунд
+      } else {
+        const scoreValue = stage.querySelector('.msc-minigame-hud__score-value');
+        if (scoreValue) scoreValue.textContent = String(Math.round((roundSeconds - timeLeft) * 4));
+      }
       if (timeLeft <= 0) { finishRound(); return; }
       rafId = requestAnimationFrame(frame);
     }
@@ -5392,11 +5757,17 @@ function openMinigame({ container, game, pointsBadgeEl, onPointsChanged, onFinis
 
   // --- 4) результат раунда ---------------------------------------------------
   function finishRound() {
+    if (phase === 'result') return;
     stopLoop();
     phase = 'result';
-    // Заглушка: случайный результат раунда вместо реального геймплея —
-    // достаточно, чтобы проверить пороги звёзд/рекорд/начисление баллов.
-    score = Math.floor(40 + Math.random() * 61); // 40..100 игровых очков
+    if (gameplay) {
+      score = gameplay.resultScore(); // 0..100
+      destroyGameplay();
+    } else {
+      // Заглушка: случайный результат раунда вместо реального геймплея —
+      // достаточно, чтобы проверить пороги звёзд/рекорд/начисление баллов.
+      score = Math.floor(40 + Math.random() * 61); // 40..100 игровых очков
+    }
     renderResult();
   }
 
@@ -5862,7 +6233,6 @@ async function runGame() {
       container: uiLayer,
       hasSave: Storage.get().tutorialSeen,
       muted: Sound.isMuted(),
-      heroSprite: heroPortrait,
       onToggleSound: () => { Sound.unlock(); Sound.toggleMute(); title.setMuted(Sound.isMuted()); },
       onPlay: async () => {
         title.remove();

@@ -95,8 +95,11 @@ const DESIGN_TOKENS_CSS = `
     --msc-fade-ms: 250ms;
   }
 
-  @media (max-width: 480px) {
-    :root {
+  /* @container phone, не @media: узкой бывает и рамка игры в широком окне
+     десктопа (низкое окно -> ширина рамки считается от высоты). Переменные —
+     на #ui-layer: у :root нет контейнера-предка. */
+  @container phone (max-width: 480px) {
+    #ui-layer {
       --msc-fs-body: 14px;
       --msc-fs-body-m: 16px;
       --msc-fs-title: 19px;
@@ -268,7 +271,10 @@ const DESIGN_TOKENS_CSS = `
     paint-order: stroke fill;
     text-shadow: 0 2px 0 rgba(0,0,0,.2);
     white-space: normal;
-    word-break: break-word;
+    /* переносить только между словами — рвать слово («Вернутьс/я») нельзя;
+       если слово не помещается, кнопка уменьшает шрифт (см. .msc-dialog-actions) */
+    overflow-wrap: normal;
+    word-break: normal;
   }
   .msc-btn__icon { position: relative; z-index: 1; width: 22px; height: 22px; flex: none; }
   .msc-btn::after {
@@ -342,7 +348,7 @@ const DESIGN_TOKENS_CSS = `
     z-index: 5;
     font-size: 20px;
   }
-  @media (max-width: 480px) {
+  @container phone (max-width: 480px) {
     .msc-close { top: -14px; right: -14px; }
   }
 
@@ -632,6 +638,13 @@ const DESIGN_TOKENS_CSS = `
   }
   .msc-dialog-actions .msc-btn-wrap { flex: 1 1 120px; max-width: 220px; }
   .msc-dialog-actions .msc-btn { width: 100%; }
+  /* Крупные кнопки в ряду действий (результат викторины/мини-игры): в узкой
+     рамке «Вернуться» не влезало в 23px с отступами по 30px. Шрифт — от
+     ширины рамки игры (cqi = % ширины контейнера phone), не меньше 16px. */
+  .msc-dialog-actions .msc-btn--l {
+    padding: 0 12px;
+    font-size: clamp(16px, 4.6cqi, var(--msc-fs-title));
+  }
 
   /* Универсальный класс pop-анимации для элементов вне Modal (например, облачко факта). */
   .msc-pop { animation: msc-pop-in var(--msc-pop-ms) cubic-bezier(.2,1.6,.4,1); }
@@ -643,8 +656,10 @@ const DESIGN_TOKENS_CSS = `
   .msc-info-bubble {
     position: absolute;
     top: 8%;
-    left: 50%;
-    transform: translateX(-50%);
+    /* центр без transform: анимация .msc-pop сама пишет transform (scale) и
+       затирала translateX(-50%) — облачко выезжало сбоку и дёргалось */
+    left: 0; right: 0; margin-inline: auto;
+    width: fit-content;
     max-width: min(360px, 82%);
     pointer-events: auto;
     cursor: pointer;
@@ -689,7 +704,7 @@ const DESIGN_TOKENS_CSS = `
      в ширину — правая группа кнопок вылезала за край рамки (раздел 3.3:
      HUD не должен обрезаться). Сужаем прогресс-бар и зазоры, не трогая
      размер самих кнопок (должны остаться ≥44×44 CSS px). */
-  @media (max-width: 480px) {
+  @container phone (max-width: 480px) {
     .msc-hud-progress-wrap { width: 72px; }
     .msc-hud-portrait-wrap { gap: 6px; }
     .msc-hud-top-right { gap: 5px; }
@@ -709,7 +724,8 @@ const DESIGN_TOKENS_CSS = `
   .msc-hud-bottom {
     position: absolute;
     left: 10px; right: 10px; bottom: 10px;
-    max-height: 12%;
+    /* без max-height: при узкой рамке текст цели переносится на 3-4 строки,
+       и с потолком высоты вылезал из панели поверх кнопок */
     min-height: 64px;
     display: flex;
     align-items: center;
@@ -743,67 +759,25 @@ const DESIGN_TOKENS_CSS = `
   .msc-hud-actions .msc-icon-btn__circle { width: 46px; height: 46px; }
   .msc-hud-actions .msc-icon-btn__circle svg { width: 24px; height: 24px; }
   .msc-hud-actions .msc-icon-btn__label { font-size: 11px; }
+  /* Совсем узкая рамка (низкое окно десктопа, маленький телефон): текст цели
+     мельче, кнопки плотнее — чтобы цель не растягивала панель на пол-экрана. */
+  @container phone (max-width: 400px) {
+    .msc-hud-bottom { padding: 6px 10px; gap: 8px; }
+    .msc-hud-goal { gap: 8px; }
+    .msc-hud-goal__icon { width: 28px; height: 28px; }
+    .msc-hud-goal__text { font-size: 12.5px; line-height: 1.2; }
+    .msc-hud-actions { gap: 3px; }
+    .msc-hud-actions .msc-icon-btn__circle { width: 44px; height: 44px; }
+    .msc-hud-actions .msc-icon-btn__label { font-size: 10px; }
+  }
 
   /* ============================== ТИТУЛЬНЫЙ ЭКРАН ============================== */
   .msc-title-screen {
     position: absolute; inset: 0;
     pointer-events: auto;
     overflow: hidden;
-    background: linear-gradient(180deg, #7FCBEA 0%, #BFE8F2 42%, #2F6FB5 100%);
-  }
-  .msc-title-cloud {
-    position: absolute;
-    background: #fff;
-    border-radius: 50%;
-    opacity: .85;
-    filter: blur(0.5px);
-  }
-  .msc-title-sea {
-    position: absolute; left: 0; right: 0; bottom: 0; height: 46%;
-    background: linear-gradient(180deg, #2F6FB5, #1C4E82);
-  }
-  .msc-title-wave {
-    position: absolute; left: -220px; width: calc(100% + 440px); height: 34px;
-    background-repeat: repeat-x;
-    background-size: 220px 34px;
-  }
-  .msc-title-wave--back {
-    top: -22px;
-    opacity: .55;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='34' viewBox='0 0 220 34'><path d='M0 17 Q 55 2 110 17 T 220 17 V34 H0 Z' fill='%234A8FD8'/></svg>");
-    animation: msc-wave-drift 10s linear infinite;
-  }
-  .msc-title-wave--front {
-    top: -8px;
-    opacity: .85;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='34' viewBox='0 0 220 34'><path d='M0 20 Q 55 6 110 20 T 220 20 V34 H0 Z' fill='%232F6FB5'/></svg>");
-    animation: msc-wave-drift 6.5s linear infinite reverse;
-  }
-  @keyframes msc-wave-drift {
-    from { background-position-x: 0; }
-    to { background-position-x: -220px; }
-  }
-  .msc-title-liner {
-    position: absolute;
-    bottom: 43%;
-    right: 8%;
-    width: 40%;
-    max-width: 220px;
-    animation: msc-liner-rock 4.5s ease-in-out infinite;
-    filter: drop-shadow(0 10px 14px rgba(0,0,0,.25));
-  }
-  @keyframes msc-liner-rock {
-    0%, 100% { transform: rotate(-1.4deg) translateY(0); }
-    50% { transform: rotate(1.4deg) translateY(-6px); }
-  }
-  .msc-title-hero {
-    position: absolute;
-    bottom: 26%;
-    left: 8%;
-    width: 128px;
-    height: 270px;
-    background-repeat: no-repeat;
-    filter: drop-shadow(0 10px 10px rgba(0,0,0,.3));
+    /* готовая иллюстрация; цвет — на время загрузки картинки */
+    background: #9ED3EE url("assets/title/title_bg.jpg") center / cover no-repeat;
   }
   .msc-title-content {
     position: absolute; inset: 0;
@@ -1008,6 +982,15 @@ const DESIGN_TOKENS_CSS = `
   }
   .msc-minigame-stage:has(.msc-minigame-hud) { padding-top: 4px; }
   .msc-minigame-placeholder { margin-top: 40px; }
+  /* Игровое поле — занимает всё место под HUD; canvas размечается по нему. */
+  .msc-minigame-stage:has(.msc-minigame-field) { overflow: hidden; gap: 10px; }
+  .msc-minigame-field {
+    flex: 1; min-height: 0; width: 100%; position: relative;
+    border-radius: 16px; overflow: hidden;
+    border: 3px solid var(--msc-gold);
+    touch-action: none; user-select: none;
+  }
+  .msc-minigame-canvas { position: absolute; inset: 0; display: block; cursor: pointer; }
 
   .msc-minigame-rules { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 420px; }
   .msc-minigame-rule {

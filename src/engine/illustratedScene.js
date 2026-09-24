@@ -62,6 +62,12 @@ export class IllustratedScene {
     this.entryDoorId = entryDoorId;
     this.shownInfoIds.clear();
     this.dismissedIds.clear();
+    // Точка появления может лежать внутри зоны двери (в ресторане — прямо в
+    // дверном проёме). Одного таймера мало: постоял 1.5 с — и сразу «Выйти?».
+    // Такие зоны «разряжены», пока героиня из них не выйдет (как после «Нет»).
+    for (const item of this._allTriggerables()) {
+      if (pointInTrigger(sx, sy, item.trigger)) this.dismissedIds.add(item.id);
+    }
     this.blocked = false;
   }
 

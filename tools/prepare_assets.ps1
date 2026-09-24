@@ -123,22 +123,32 @@ $inset = 5 # обрезка тёмных линий сетки между яче
 $srcArgb = Read-Argb $heroSrc
 $heroSrc.Dispose()
 
-# directionRow: 0=вниз(как есть),1=влево(как есть),2=вправо(зеркало ряда 1),3=вверх(как есть)
-# Ряды 1 и 2 в исходнике ОБА смотрят влево (см. отчёт инвентаризации) —
-# ряд "вправо" синтезируем зеркалированием ряда "влево", ряд 2 исходника не используем.
-$rowSourceIndex = @{ 0 = 0; 1 = 1; 2 = 1; 3 = 3 } # какую ИСХОДНУЮ строку читать для каждой выходной строки
-$mirror = @{ 0 = $false; 1 = $false; 2 = $true; 3 = $false }
+# Выходные ряды: 0=вниз, 1=влево, 2=вправо, 3=вверх. В исходнике боковые ряды
+# перемешаны: в ряду 1 кадр 0 смотрит влево, кадры 1-3 — вправо; ряд 2 тоже
+# вперемешку. Если брать ряд целиком, героиня при ходьбе вбок «крутится»
+# туда-сюда. Поэтому для каждого выходного кадра явно: какая ячейка исходника
+# и зеркалить ли. Вправо = ряд 1 исходника с отражённым кадром 0 (порядок
+# шага сохраняется); влево = зеркало ряда «вправо» — всегда согласованы.
+$cellSpec = @{} # "outRow,col" -> @(srcRow, srcCol, mirror)
+for ($c = 0; $c -lt 4; $c++) {
+  $cellSpec["0,$c"] = @(0, $c, $false)
+  $cellSpec["3,$c"] = @(3, $c, $false)
+  $rightMirror = ($c -eq 0) # в исходном ряду 1 влево смотрит только кадр 0
+  $cellSpec["2,$c"] = @(1, $c, $rightMirror)
+  $cellSpec["1,$c"] = @(1, $c, (-not $rightMirror))
+}
 
 $cellsKeyed = @{} # "row,col" -> @{bytes; w; h; bbox}
 for ($outRow = 0; $outRow -lt $rows; $outRow++) {
-  $srcRow = $rowSourceIndex[$outRow]
   for ($col = 0; $col -lt $cols; $col++) {
-    $x0 = $col * $cellW + $inset
+    $spec = $cellSpec["$outRow,$col"]
+    $srcRow = $spec[0]; $srcCol = $spec[1]
+    $x0 = $srcCol * $cellW + $inset
     $y0 = $srcRow * $cellH + $inset
     $w = $cellW - $inset * 2
     $h = $cellH - $inset * 2
     $keyed = Remove-GreenScreen $srcArgb.bytes $srcArgb.stride $x0 $y0 $w $h
-    if ($mirror[$outRow]) {
+    if ($spec[2]) {
       $flipped = New-Object byte[] ($w * $h * 4)
       for ($y = 0; $y -lt $h; $y++) {
         $rowBase = $y * $w * 4

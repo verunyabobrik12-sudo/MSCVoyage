@@ -13,6 +13,7 @@ export const MINIGAMES = {
     avoidText: 'Избегайте не итальянской кухни',
     rules: 'Итальянская еда падает сверху — ловите её корзиной. Другая кухня отнимает жизнь.',
     lives: 3,
+    durationSec: 45,
     postcardId: 'restaurant',
   },
   ballMinigame: {

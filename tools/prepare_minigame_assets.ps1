@@ -277,36 +277,30 @@ Write-Output "`n--- runner ---"
 $runnerDir = Join-Path $rawDir "runner"
 $runnerOut = Join-Path $outDir "runner"
 
-# Бесшовная склейка краёв "offset & blend": каждый пиксель на расстоянии
-# distFromEdge < band от левого/правого края подмешивает пиксель с
-# противоположного края с весом (1 - distFromEdge/band) — оба края тем самым
-# сходятся к одному и тому же смешанному цвету и совпадают при тайле.
-# Работает и с альфой (после хромакея), и без неё (opaque far-слой).
-function Add-SeamBlend($argb, [int]$band) {
-  $w = $argb.w; $h = $argb.h
-  $out = [byte[]]$argb.bytes.Clone()
-  for ($y = 0; $y -lt $h; $y++) {
-    $rowBase = $y * $w * 4
-    for ($d = 0; $d -lt $band; $d++) {
-      $wt = 1.0 - ($d / [double]$band) # вес противоположного края на этом расстоянии
-      foreach ($x in @($d, ($w - 1 - $d))) {
-        $mirrorX = if ($x -eq $d) { $w - 1 - $d } else { $d }
-        $i = $rowBase + $x * 4
-        $m = $rowBase + $mirrorX * 4
-        for ($c = 0; $c -lt 4; $c++) {
-          $orig = $argb.bytes[$i + $c]
-          $opp = $argb.bytes[$m + $c]
-          $out[$i + $c] = [byte]([Math]::Round($orig * (1 - $wt) + $opp * $wt))
-        }
-      }
-    }
-  }
-  return @{ bytes = $out; w = $w; h = $h }
+# Бесшовность зеркальным повтором: файл = оригинал + его отражение по X,
+# ширина x2. Стык «оригинал|отражение» и «отражение|оригинал» совпадает
+# пиксель в пиксель, поэтому игра просто повторяет картинку как есть.
+# Раньше было смешивание краёв (offset & blend) — давало видимые
+# полупрозрачные «призраки» на шве.
+function Save-MirrorTiled($argb, $path) {
+  $orig = Write-Argb $argb.bytes $argb.w $argb.h
+  $flip = $orig.Clone()
+  $flip.RotateFlip([System.Drawing.RotateFlipType]::RotateNoneFlipX)
+  $bmp = [System.Drawing.Bitmap]::new(($argb.w * 2), $argb.h, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
+  $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::NearestNeighbor
+  $g.DrawImage($orig, 0, 0, $argb.w, $argb.h)
+  $g.DrawImage($flip, $argb.w, 0, $argb.w, $argb.h)
+  $g.Dispose(); $orig.Dispose(); $flip.Dispose()
+  $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
+  $bmp.Dispose()
 }
 
 function Save-TiledPreview($pngPath, $outPreviewPath, [int]$repeats = 3) {
   $img = [System.Drawing.Image]::FromFile($pngPath)
-  $bmp = New-Object System.Drawing.Bitmap($img.Width * $repeats, $img.Height)
+  # ::new, не New-Object(...): в командном режиме запятая связывает сильнее `*`
+  $bmp = [System.Drawing.Bitmap]::new(($img.Width * $repeats), $img.Height)
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   for ($i = 0; $i -lt $repeats; $i++) { $g.DrawImage($img, $i * $img.Width, 0) }
   $g.Dispose(); $img.Dispose()
@@ -314,17 +308,15 @@ function Save-TiledPreview($pngPath, $outPreviewPath, [int]$repeats = 3) {
   $bmp.Dispose()
 }
 
-# far — уже без хромакея (непрозрачное небо/дымка), только шов.
+# far — без хромакея (непрозрачное небо/дымка), только зеркальный повтор.
 $farSrc = [System.Drawing.Bitmap]::FromFile((Join-Path $runnerDir "far.jfif"))
 $farArgb = Read-Argb $farSrc
 $farSrc.Dispose()
-$farBand = [int]($farArgb.w * 0.12)
-$farBlended = Add-SeamBlend $farArgb $farBand
-Save-ArgbPng $farBlended (Join-Path $runnerOut "far.png")
+Save-MirrorTiled $farArgb (Join-Path $runnerOut "far.png")
 Save-TiledPreview (Join-Path $runnerOut "far.png") (Join-Path $reportDir "tile_far_x3.png")
-Write-Output "  [far] шов ${farBand}px, сохранено + превью x3"
+Write-Output "  [far] зеркальный повтор, сохранено + превью x3"
 
-# mid/ground — хромакей всего листа, потом шов.
+# mid/ground — хромакей всего листа, потом зеркальный повтор.
 foreach ($layer in @("mid", "ground")) {
   $src = [System.Drawing.Bitmap]::FromFile((Join-Path $runnerDir "$layer.jfif"))
   $srcArgb = Read-Argb $src
@@ -336,13 +328,11 @@ foreach ($layer in @("mid", "ground")) {
     $bbox = Get-AlphaBBox $keyed $srcArgb.w $srcArgb.h
     $keyedArgb = Crop-Argb $keyed $srcArgb.w $srcArgb.h $bbox 0
   }
-  $band = [int]($keyedArgb.w * 0.12)
-  $blended = Add-SeamBlend $keyedArgb $band
-  Save-ArgbPng $blended (Join-Path $runnerOut "$layer.png")
+  Save-MirrorTiled $keyedArgb (Join-Path $runnerOut "$layer.png")
   Save-TiledPreview (Join-Path $runnerOut "$layer.png") (Join-Path $reportDir "tile_${layer}_x3.png")
-  Write-Output "  [$layer] хромакей + шов ${band}px, сохранено + превью x3"
+  Write-Output "  [$layer] хромакей + зеркальный повтор, сохранено + превью x3"
 }
-$report += "runner/far,mid,ground: бесшовность сделана смешиванием краёв (offset & blend), не поиском периода повтора — проверь превью tile_*_x3.png на видимый шов/повтор текстуры"
+$report += "runner/far,mid,ground: бесшовность — зеркальный повтор (файл = оригинал + отражение, ширина x2); проверь превью tile_*_x3.png на заметность симметрии"
 
 # Связные компоненты по альфе (4-связность, BFS) — для листа, где объекты
 # расположены не строгой сеткой (obstacles_coins_finish). Возвращает bbox'ы,
@@ -363,7 +353,9 @@ function Get-ConnectedComponents($argb, [int]$alphaThreshold = 20, [int]$minArea
       $minX = $x; $maxX = $x; $minY = $y; $maxY = $y; $area = 0
       while ($queue.Count -gt 0) {
         $cur = $queue.Dequeue()
-        $cy = [int]($cur / $w); $cx = $cur - $cy * $w
+        # не [int]($cur / $w): [int] в PowerShell округляет, а не отбрасывает дробь —
+        # для правой половины строки давало cy+1 и отрицательный cx
+        $cx = $cur % $w; $cy = ($cur - $cx) / $w
         $area++
         if ($cx -lt $minX) { $minX = $cx }; if ($cx -gt $maxX) { $maxX = $cx }
         if ($cy -lt $minY) { $minY = $cy }; if ($cy -gt $maxY) { $maxY = $cy }
@@ -382,7 +374,9 @@ function Get-ConnectedComponents($argb, [int]$alphaThreshold = 20, [int]$minArea
       }
     }
   }
-  return $components | Sort-Object { $_.minY }, { $_.minX }
+  # по ряду (центр по Y, полосы по 200px), не по minY — иначе флажок экскурсовода
+  # поднимает туристов выше скутера и ломает порядок имён
+  return $components | Sort-Object { [Math]::Floor(($_.minY + $_.maxY) / 2 / 200) }, { $_.minX }
 }
 
 # ===================== ПРЕПЯТСТВИЯ/МОНЕТЫ/ФИНИШ (раннер) =====================
@@ -392,14 +386,16 @@ $obArgb = Read-Argb $obSrc
 $obSrc.Dispose()
 $obKeyedBytes = Remove-GreenScreen $obArgb.bytes $obArgb.stride 0 0 $obArgb.w $obArgb.h
 $obKeyed = @{ bytes = $obKeyedBytes; w = $obArgb.w; h = $obArgb.h }
-$components = Get-ConnectedComponents $obKeyed
-Write-Output "  найдено связных объектов: $($components.Count) (ожидалось по ТЗ: 5 в ряду препятствий + 4 монеты + 1 фонтан = 10)"
+# minArea 1000: отсекает отдельные искорки у монет и капли у лужи (до 284px),
+# самый мелкий настоящий объект — монета ребром, ~4400px
+$components = Get-ConnectedComponents $obKeyed 20 1000
+Write-Output "  найдено связных объектов: $($components.Count) (ожидалось: 6 в ряду препятствий (туристы и багаж — отдельно) + 4 монеты + 1 фонтан = 11)"
 
 # Предположительные имена по порядку чтения — верны, только если найдено
 # ровно 10 компонентов И порядок совпал с раскладкой листа; иначе — общие
 # obj-имена, реальные роли уточнить по contact-листу.
 $guessNames10 = @(
-  "scooter", "pigeon", "puddle", "suitcase", "tourist_group_luggage",
+  "scooter", "pigeon", "puddle", "suitcase", "tourist_group", "luggage_pile",
   "coin_spin_1", "coin_spin_2", "coin_spin_3", "coin_spin_4",
   "fountain_finish"
 )
@@ -408,14 +404,14 @@ for ($i = 0; $i -lt $components.Count; $i++) {
   $c = $components[$i]
   $bbox = @{ minX = $c.minX; maxX = $c.maxX; minY = $c.minY; maxY = $c.maxY }
   $cropped = Crop-Argb $obKeyed.bytes $obKeyed.w $obKeyed.h $bbox 4
-  $name = if ($components.Count -eq 10) { $guessNames10[$i] } else { "obj{0:D2}" -f ($i + 1) }
+  $name = if ($components.Count -eq $guessNames10.Count) { $guessNames10[$i] } else { "obj{0:D2}" -f ($i + 1) }
   $outPath = Join-Path (Join-Path $runnerOut "obstacles") "$name.png"
   Save-ArgbPng $cropped $outPath
   $bmpForSheet = [System.Drawing.Bitmap]::FromFile($outPath)
   $obResults += @{ label = "$name (area=$($c.area))"; bmp = $bmpForSheet }
 }
 New-ContactSheet $obResults (Join-Path $reportDir "contact_runner_obstacles.png") 4 220
-$report += "runner/obstacles: найдено $($components.Count) связных объектов (ожидалось 10) — сверь contact_runner_obstacles.png с её списком (скутер/голубь/лужа/чемодан/группа туристов+багаж/4 кадра монеты/фонтан)"
+$report += "runner/obstacles: найдено $($components.Count) связных объектов (ожидалось 11: скутер/голубь/лужа/чемодан/группа туристов/стопка багажа/4 кадра монеты/фонтан) — сверь contact_runner_obstacles.png"
 
 # ===================== hero_run (16 кадров, роли пока предположительные) =====================
 Write-Output "`n--- hero_run ---"

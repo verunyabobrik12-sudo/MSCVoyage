@@ -6,6 +6,8 @@
 // официант, не подключён), поднос рисуется процедурно поверх кадра.
 // Базилик исключён: при хромакее листья частично вырезались вместе с зелёным фоном.
 
+import { loadImage, loadJson } from './common.js';
+
 const ITALIAN = ['pizza_italian', 'pasta_italian', 'parmesan_italian', 'olives_italian',
   'tiramisu_italian', 'tomato_italian', 'espresso_italian'];
 const FOREIGN = ['sushi_asian', 'ramen_asian', 'dimsum_asian', 'chopsticks_asian'];
@@ -19,22 +21,12 @@ const FOREIGN_CHANCE = [0.25, 0.40];
 
 const lerp = (a, b, t) => a + (b - a) * t;
 
-const CACHE_BUST = `v=${Date.now()}`;
-function loadImage(src) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = `${src}?${CACHE_BUST}`;
-  });
-}
-
 let assetsPromise = null;
 /** Грузит фон, предметы и лист героини один раз на всю сессию. */
 export function preloadCatchFood() {
   if (!assetsPromise) {
     assetsPromise = (async () => {
-      const heroMeta = await fetch(`assets/sprites/hero_girl.json?${CACHE_BUST}`).then((r) => r.json());
+      const heroMeta = await loadJson('assets/sprites/hero_girl.json');
       const [bg, hero, ...items] = await Promise.all([
         loadImage('assets/minigames/catch/bg.png'),
         loadImage(`assets/sprites/${heroMeta.file}`),

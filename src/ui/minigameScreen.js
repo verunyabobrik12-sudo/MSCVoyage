@@ -15,6 +15,7 @@ import { CONFIG } from '../data/config.js';
 import { Storage } from '../engine/storage.js';
 import { Sound } from '../engine/sound.js';
 import { createCatchFood, preloadCatchFood } from '../minigames/catchFood.js';
+import { createBallGame, preloadBallGame } from '../minigames/ballGame.js';
 
 const ROUND_SECONDS = 15; // длительность полосы времени в заглушке геймплея
 
@@ -22,6 +23,7 @@ const ROUND_SECONDS = 15; // длительность полосы времен�
 // { ready, update(dt, progress), resultScore(), destroy() }.
 const GAMEPLAY = {
   catchFoodMinigame: { create: createCatchFood, preload: preloadCatchFood },
+  ballMinigame: { create: createBallGame, preload: preloadBallGame },
 };
 
 function el(tag, className, attrs = {}) {

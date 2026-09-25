@@ -687,8 +687,8 @@ const CONFIG = {
 __mod["data/minigames.js"] = (function () {
 
 // Общие данные трёх мини-игр (раздел 3.6 ТЗ этапа 2) — только то, что нужно
-// каркасу экранов (правила/иконки/жизни). Сам геймплей — отдельный этап,
-// здесь у каждой игры вместо него заглушка "Симулировать результат".
+// каркасу экранов (правила/иконки/жизни/длительность). Геймплей — в
+// src/minigames/*, подключается в src/ui/minigameScreen.js (GAMEPLAY).
 // postcardId — по аналогии с HOTSPOT_QUIZ в illustratedBootstrap.js.
 
 const MINIGAMES = {
@@ -708,11 +708,12 @@ const MINIGAMES = {
     id: 'ballMinigame',
     title: 'Не урони мяч',
     doIcon: 'check',
-    doText: 'Удерживайте мяч в воздухе',
+    doText: 'Отбивайте мяч ракеткой, ловите звёзды и монеты',
     avoidIcon: 'exclaim',
-    avoidText: 'Не давайте мячу упасть',
-    rules: 'Следите за мячом и не давайте ему коснуться воды. Каждое падение — потерянная жизнь.',
+    avoidText: 'Не роняйте мяч в воду, уворачивайтесь от ежей и капель',
+    rules: 'Двигайте ракетку по бортику и не давайте мячу упасть в бассейн. Сердце возвращает жизнь.',
     lives: 3,
+    durationSec: 45,
     postcardId: 'pool',
   },
   coinsMinigame: {
@@ -5239,8 +5240,184 @@ function openQuiz({ container, quiz, postcardId, pointsBadgeEl, onPointsChanged,
   return { openQuiz };
 })();
 
-__mod["minigames/catchFood.js"] = (function () {
+__mod["minigames/common.js"] = (function () {
 
+// Общее для геймплея мини-игр (src/minigames/*): загрузка картинок с
+// cache-busting и очистка спрайтов, нарезанных сеткой из общего листа.
+
+const CACHE_BUST = `v=${Date.now()}`;
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = `${src}?${CACHE_BUST}`;
+  });
+}
+
+function loadJson(src) {
+  return fetch(`${src}?${CACHE_BUST}`).then((r) => r.json());
+}
+
+/**
+ * Оставляет в спрайте только самый крупный связный силуэт и обрезает по нему.
+ * Листы (ball/sprites) нарезаны ровной сеткой, а объекты на них не всегда
+ * помещаются в свою ячейку — в соседнюю попадают обрывки (кончик ракетки над
+ * брызгами, край брызг у капли). Возвращает canvas, его можно рисовать как картинку.
+ */
+function cleanSprite(img, alphaThreshold = 20) {
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  const data = ctx.getImageData(0, 0, w, h);
+  const px = data.data;
+  const label = new Int32Array(w * h); // 0 — не размечено / прозрачно
+  const stack = new Int32Array(w * h);
+  let best = 0;
+  let bestArea = 0;
+  let next = 1;
+  for (let i = 0; i < w * h; i++) {
+    if (label[i] || px[i * 4 + 3] <= alphaThreshold) continue;
+    const id = next++;
+    let area = 0;
+    let sp = 0;
+    stack[sp++] = i;
+    label[i] = id;
+    while (sp > 0) {
+      const cur = stack[--sp];
+      area++;
+      const x = cur % w;
+      const y = (cur - x) / w;
+      const nb = [x > 0 ? cur - 1 : -1, x < w - 1 ? cur + 1 : -1, y > 0 ? cur - w : -1, y < h - 1 ? cur + w : -1];
+      for (const n of nb) {
+        if (n < 0 || label[n] || px[n * 4 + 3] <= alphaThreshold) continue;
+        label[n] = id;
+        stack[sp++] = n;
+      }
+    }
+    if (area > bestArea) { bestArea = area; best = id; }
+  }
+  let minX = w, minY = h, maxX = -1, maxY = -1;
+  for (let i = 0; i < w * h; i++) {
+    if (label[i] === best) {
+      const x = i % w;
+      const y = (i - x) / w;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    } else if (px[i * 4 + 3] > alphaThreshold) {
+      px[i * 4 + 3] = 0; // обрывок — стираем (полупрозрачную кайму основного силуэта не трогаем)
+    }
+  }
+  ctx.putImageData(data, 0, 0);
+  if (maxX < 0) return c;
+  const pad = 2;
+  minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+  maxX = Math.min(w - 1, maxX + pad); maxY = Math.min(h - 1, maxY + pad);
+  const out = document.createElement('canvas');
+  out.width = maxX - minX + 1;
+  out.height = maxY - minY + 1;
+  out.getContext('2d').drawImage(c, minX, minY, out.width, out.height, 0, 0, out.width, out.height);
+  return out;
+}
+
+/**
+ * Canvas во весь host с учётом devicePixelRatio. onResize(w, h) вызывается
+ * при каждом изменении размера (CSS-пиксели). Возвращает { canvas, ctx, size, destroy }.
+ */
+function createFieldCanvas(host, onResize) {
+  const canvas = document.createElement('canvas');
+  canvas.className = 'msc-minigame-canvas';
+  host.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  const size = { w: 1, h: 1, dpr: 1 };
+  function resize() {
+    const rect = host.getBoundingClientRect();
+    size.dpr = window.devicePixelRatio || 1;
+    size.w = Math.max(1, rect.width);
+    size.h = Math.max(1, rect.height);
+    canvas.width = Math.round(size.w * size.dpr);
+    canvas.height = Math.round(size.h * size.dpr);
+    canvas.style.width = `${size.w}px`;
+    canvas.style.height = `${size.h}px`;
+    onResize?.(size.w, size.h);
+  }
+  const ro = new ResizeObserver(resize);
+  ro.observe(host);
+  return {
+    canvas,
+    ctx,
+    size,
+    /** Сбросить трансформацию под DPR и очистить — вызывать в начале кадра. */
+    begin() {
+      ctx.setTransform(size.dpr, 0, 0, size.dpr, 0, 0);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.clearRect(0, 0, size.w, size.h);
+    },
+    destroy() { ro.disconnect(); canvas.remove(); },
+  };
+}
+
+/**
+ * Горизонтальное управление, общее для «поймай» и «мяча»: указатель (мышь/
+ * палец, в т.ч. по рамке поля) и стрелки/A-D. targetX/keyDir — в долях ширины.
+ */
+function createHorizontalControl(host, canvas) {
+  const st = { targetX: null, keyDir: 0 };
+  function toTarget(e) {
+    const rect = canvas.getBoundingClientRect();
+    st.targetX = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+  }
+  const onDown = (e) => { host.setPointerCapture?.(e.pointerId); toTarget(e); };
+  const onMove = (e) => { if (e.pointerType === 'mouse' || e.buttons) toTarget(e); };
+  const onLeave = (e) => { if (e.pointerType === 'mouse') st.targetX = null; };
+  const held = new Set();
+  const onKey = (e) => {
+    const left = ['ArrowLeft', 'a', 'A', 'ф', 'Ф'].includes(e.key);
+    const right = ['ArrowRight', 'd', 'D', 'в', 'В'].includes(e.key);
+    if (!left && !right) return;
+    e.preventDefault();
+    const k = left ? 'L' : 'R';
+    if (e.type === 'keydown') held.add(k); else held.delete(k);
+    st.keyDir = (held.has('R') ? 1 : 0) - (held.has('L') ? 1 : 0);
+    if (st.keyDir) st.targetX = null; // клавиатура перебивает указатель
+  };
+  host.addEventListener('pointerdown', onDown);
+  host.addEventListener('pointermove', onMove);
+  host.addEventListener('pointerleave', onLeave);
+  window.addEventListener('keydown', onKey);
+  window.addEventListener('keyup', onKey);
+  return {
+    state: st,
+    /** Сдвинуть x (доля ширины) к цели со скоростью speed долей/с, вернуть новый x. */
+    step(x, dt, speed) {
+      const max = speed * dt;
+      if (st.keyDir) return x + st.keyDir * max;
+      if (st.targetX !== null) { const d = st.targetX - x; return x + Math.sign(d) * Math.min(Math.abs(d), max); }
+      return x;
+    },
+    destroy() {
+      host.removeEventListener('pointerdown', onDown);
+      host.removeEventListener('pointermove', onMove);
+      host.removeEventListener('pointerleave', onLeave);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keyup', onKey);
+    },
+  };
+}
+
+  return { loadImage, loadJson, cleanSprite, createFieldCanvas, createHorizontalControl };
+})();
+
+__mod["minigames/catchFood.js"] = (function () {
+const { loadImage, loadJson } = __mod["minigames/common.js"];
 // Геймплей мини-игры «Поймай итальянское» (Ресторан). Canvas-поле внутри
 // каркаса src/ui/minigameScreen.js: каркас ведёт таймер, паузу, HUD и
 // результат, а здесь — только падающая еда, героиня с подносом и столкновения.
@@ -5248,6 +5425,8 @@ __mod["minigames/catchFood.js"] = (function () {
 // Героиня — тот же лист hero_girl, что и в сценах (catch/player.jfif — мужчина-
 // официант, не подключён), поднос рисуется процедурно поверх кадра.
 // Базилик исключён: при хромакее листья частично вырезались вместе с зелёным фоном.
+
+
 
 const ITALIAN = ['pizza_italian', 'pasta_italian', 'parmesan_italian', 'olives_italian',
   'tiramisu_italian', 'tomato_italian', 'espresso_italian'];
@@ -5262,22 +5441,12 @@ const FOREIGN_CHANCE = [0.25, 0.40];
 
 const lerp = (a, b, t) => a + (b - a) * t;
 
-const CACHE_BUST = `v=${Date.now()}`;
-function loadImage(src) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = `${src}?${CACHE_BUST}`;
-  });
-}
-
 let assetsPromise = null;
 /** Грузит фон, предметы и лист героини один раз на всю сессию. */
 function preloadCatchFood() {
   if (!assetsPromise) {
     assetsPromise = (async () => {
-      const heroMeta = await fetch(`assets/sprites/hero_girl.json?${CACHE_BUST}`).then((r) => r.json());
+      const heroMeta = await loadJson('assets/sprites/hero_girl.json');
       const [bg, hero, ...items] = await Promise.all([
         loadImage('assets/minigames/catch/bg.png'),
         loadImage(`assets/sprites/${heroMeta.file}`),
@@ -5594,6 +5763,332 @@ function createCatchFood({ host, onScore, onLives, onGameOver, lives }) {
   return { preloadCatchFood, createCatchFood };
 })();
 
+__mod["minigames/ballGame.js"] = (function () {
+const { loadImage, cleanSprite, createFieldCanvas, createHorizontalControl } = __mod["minigames/common.js"];
+// Геймплей мини-игры «Не урони мяч» (Бассейн). Canvas-поле внутри каркаса
+// src/ui/minigameScreen.js: каркас ведёт таймер, паузу, HUD и результат.
+//
+// Ракетка ездит по бортику бассейна, мяч летает под «гравитацией» и
+// отскакивает от круглой головы ракетки — угол зависит от точки удара.
+// Упал в воду — брызги и минус жизнь, мяч появляется сверху заново.
+// Сверху медленно падают бонусы (ловить ракеткой) и ловушки (уворачиваться).
+// Не используются: extra_ball_alt1/2, extra_chest_locked, extra_trap_urchin_dup
+// (запасные варианты с листа), trap_splash — только как эффект брызг.
+
+
+
+const SPRITES = ['ball_main', 'paddle', 'bonus_star', 'bonus_coin', 'bonus_heart', 'trap_drop', 'trap_urchin', 'trap_splash'];
+
+const POINTS_PER_HIT = 10;
+const BONUS = {
+  bonus_star: { points: 30 },
+  bonus_coin: { points: 20 },
+  bonus_heart: { life: 1, pointsIfFull: 20 },
+};
+const TRAPS = ['trap_urchin', 'trap_drop'];
+// Очков для «100%»: ~25 отбитых мячей + немного бонусов за 45 с.
+const TARGET_SCORE = 320;
+
+// Кривые сложности по доле прошедшего раунда p = 0..1.
+const GRAVITY = [1.1, 1.6]; // доля высоты поля / с²
+const ITEM_INTERVAL = [3.2, 1.6]; // сек между бонусами/ловушками
+const TRAP_CHANCE = [0.35, 0.55];
+const ITEM_FALL = [0.16, 0.26]; // доля высоты / с
+
+// Фон 848x1264: верх бортика бассейна и линия воды (в пикселях исходника).
+const BG_W = 848;
+const BG_H = 1264;
+const BG_POOL_LIP = 745;
+const BG_WATER = 800;
+
+const lerp = (a, b, t) => a + (b - a) * t;
+
+let assetsPromise = null;
+function preloadBallGame() {
+  if (!assetsPromise) {
+    assetsPromise = (async () => {
+      const [bg, ...imgs] = await Promise.all([
+        loadImage('assets/minigames/ball/bg.png'),
+        ...SPRITES.map((n) => loadImage(`assets/minigames/ball/sprites/${n}.png`)),
+      ]);
+      const sprites = {};
+      SPRITES.forEach((n, i) => { sprites[n] = cleanSprite(imgs[i]); });
+      return { bg, sprites };
+    })();
+    assetsPromise.catch(() => { assetsPromise = null; });
+  }
+  return assetsPromise;
+}
+
+/**
+ * @param {{host:HTMLElement, onScore:(n:number)=>void, onLives:(n:number)=>void,
+ *          onGameOver:()=>void, lives:number}} opts
+ */
+function createBallGame({ host, onScore, onLives, onGameOver, lives }) {
+  let assets = null;
+  const field = createFieldCanvas(host, () => render());
+  const { ctx, size } = field;
+  const control = createHorizontalControl(host, field.canvas);
+  const maxLives = lives;
+
+  const state = {
+    lives,
+    score: 0,
+    hits: 0,
+    progress: 0,
+    paddleX: 0.5, // доля ширины
+    paddleVx: 0, // px/с — «подкручивает» отскок
+    ball: null, // { x, y, vx, vy, spin } в px; null — ждём появления
+    respawnT: 0.6,
+    items: [],
+    itemTimer: 2.2,
+    effects: [], // брызги, всплывающие очки
+    hurtT: 0,
+    over: false,
+  };
+
+  // --- геометрия ------------------------------------------------------------
+  function bgGeom() {
+    const s = Math.max(size.w / BG_W, size.h / BG_H);
+    return { s, offX: (size.w - BG_W * s) / 2, offY: size.h - BG_H * s };
+  }
+  function paddleGeom() {
+    const pw = Math.min(size.w * 0.24, 110);
+    const k = pw / 157; // исходный спрайт ракетки 157x245, голова — круг ~r76 с центром на y≈80
+    const g = bgGeom();
+    const headR = 72 * k;
+    const headY = g.offY + BG_POOL_LIP * g.s - headR * 0.9; // голова над бортиком
+    return { pw, k, headR, headY, cx: state.paddleX * size.w };
+  }
+  function waterY() { const g = bgGeom(); return g.offY + BG_WATER * g.s; }
+  function ballR() { return paddleGeom().headR * 0.62; }
+  function gravity() { return lerp(GRAVITY[0], GRAVITY[1], state.progress) * size.h; }
+
+  function spawnBall() {
+    state.ball = {
+      x: lerp(0.3, 0.7, Math.random()) * size.w,
+      y: size.h * 0.12,
+      vx: (Math.random() - 0.5) * size.w * 0.2,
+      vy: 0,
+      spin: 0,
+    };
+  }
+
+  function spawnItem() {
+    const trap = Math.random() < lerp(TRAP_CHANCE[0], TRAP_CHANCE[1], state.progress);
+    let name;
+    if (trap) name = TRAPS[Math.floor(Math.random() * TRAPS.length)];
+    else {
+      const r = Math.random();
+      name = r < 0.45 ? 'bonus_star' : r < 0.85 ? 'bonus_coin' : 'bonus_heart';
+    }
+    const r = paddleGeom().headR * 0.55;
+    state.items.push({
+      name, trap, r,
+      x: lerp(r, size.w - r, Math.random()),
+      y: -r,
+      speed: lerp(ITEM_FALL[0], ITEM_FALL[1], state.progress) * size.h * (0.85 + Math.random() * 0.3),
+      wobble: Math.random() * Math.PI * 2,
+    });
+  }
+
+  function popup(text, x, y, good) { state.effects.push({ kind: 'text', text, x, y, good, t: 0, life: 0.8 }); }
+
+  function loseLife() {
+    state.lives -= 1;
+    state.hurtT = 0.35;
+    onLives?.(state.lives);
+    if (state.lives <= 0) { state.over = true; onGameOver?.(); return true; }
+    return false;
+  }
+
+  // --- логика ---------------------------------------------------------------
+  function update(dt, progress) {
+    if (!assets || state.over) return;
+    state.progress = Math.min(1, Math.max(0, progress));
+
+    const pg0 = paddleGeom();
+    const prevX = state.paddleX;
+    const edge = (pg0.pw / 2 + 2) / size.w;
+    state.paddleX = Math.min(1 - edge, Math.max(edge, control.step(state.paddleX, dt, 1.8)));
+    state.paddleVx = ((state.paddleX - prevX) * size.w) / Math.max(dt, 1e-3);
+    const pg = paddleGeom();
+
+    // мяч
+    if (!state.ball) {
+      state.respawnT -= dt;
+      if (state.respawnT <= 0) spawnBall();
+    } else {
+      const b = state.ball;
+      const br = ballR();
+      b.vy += gravity() * dt;
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.spin += (b.vx * dt) / br;
+      if (b.x < br) { b.x = br; b.vx = Math.abs(b.vx); }
+      if (b.x > size.w - br) { b.x = size.w - br; b.vx = -Math.abs(b.vx); }
+      if (b.y < br) { b.y = br; b.vy = Math.abs(b.vy) * 0.6; }
+
+      // удар о голову ракетки (круг-круг), только если мяч летит к ней
+      const dx = b.x - pg.cx;
+      const dy = b.y - pg.headY;
+      const dist = Math.hypot(dx, dy);
+      if (dist < br + pg.headR && dist > 0) {
+        const nx = dx / dist;
+        const ny = dy / dist;
+        if (b.vx * nx + b.vy * ny < 0) {
+          const g = gravity();
+          const launch = Math.sqrt(2 * g * size.h * lerp(0.5, 0.62, Math.random()));
+          b.vy = -launch * Math.max(0.55, -ny); // удар сбоку — ниже и сильнее вбок
+          b.vx = nx * launch * 0.75 + state.paddleVx * 0.25;
+          const maxVx = size.w * 1.3;
+          b.vx = Math.max(-maxVx, Math.min(maxVx, b.vx));
+          b.x = pg.cx + nx * (br + pg.headR + 1);
+          b.y = pg.headY + ny * (br + pg.headR + 1);
+          state.hits += 1;
+          state.score += POINTS_PER_HIT;
+          onScore?.(state.score);
+          popup(`+${POINTS_PER_HIT}`, b.x, b.y - br, true);
+        }
+      }
+
+      if (b.y - br > waterY()) {
+        state.effects.push({ kind: 'splash', x: b.x, y: waterY(), t: 0, life: 0.7 });
+        state.ball = null;
+        state.respawnT = 1.0;
+        if (loseLife()) return;
+      }
+    }
+
+    // бонусы и ловушки
+    state.itemTimer -= dt;
+    if (state.itemTimer <= 0) {
+      spawnItem();
+      state.itemTimer = lerp(ITEM_INTERVAL[0], ITEM_INTERVAL[1], state.progress);
+    }
+    for (let i = state.items.length - 1; i >= 0; i--) {
+      const it = state.items[i];
+      it.y += it.speed * dt;
+      it.wobble += dt * 3;
+      if (Math.hypot(it.x - pg.cx, it.y - pg.headY) < pg.headR + it.r * 0.8) {
+        state.items.splice(i, 1);
+        if (it.trap) {
+          popup('−1 ♥', it.x, it.y, false);
+          if (loseLife()) return;
+        } else {
+          const bonus = BONUS[it.name];
+          if (bonus.life && state.lives < maxLives) {
+            state.lives += bonus.life;
+            onLives?.(state.lives);
+            popup('+1 ♥', it.x, it.y, true);
+          } else {
+            const pts = bonus.points ?? bonus.pointsIfFull;
+            state.score += pts;
+            onScore?.(state.score);
+            popup(`+${pts}`, it.x, it.y, true);
+          }
+        }
+        continue;
+      }
+      if (it.y - it.r > waterY()) state.items.splice(i, 1);
+    }
+
+    for (let i = state.effects.length - 1; i >= 0; i--) {
+      state.effects[i].t += dt;
+      if (state.effects[i].t > state.effects[i].life) state.effects.splice(i, 1);
+    }
+    if (state.hurtT > 0) state.hurtT -= dt;
+    render();
+  }
+
+  // --- отрисовка ------------------------------------------------------------
+  function drawSprite(name, cx, cy, maxSide, rot = 0, alpha = 1) {
+    const img = assets.sprites[name];
+    const sc = maxSide / Math.max(img.width, img.height);
+    const w = img.width * sc;
+    const h = img.height * sc;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(cx, cy);
+    if (rot) ctx.rotate(rot);
+    ctx.drawImage(img, -w / 2, -h / 2, w, h);
+    ctx.restore();
+  }
+
+  function render() {
+    field.begin();
+    if (!assets) return;
+    const g = bgGeom();
+    ctx.drawImage(assets.bg, g.offX, g.offY, BG_W * g.s, BG_H * g.s);
+
+    const pg = paddleGeom();
+    // ракетка: спрайт 157x245, центр головы на (78, 80) исходника
+    const img = assets.sprites.paddle;
+    const pw = pg.pw;
+    const ph = (img.height / img.width) * pw;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,.25)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 4;
+    ctx.drawImage(img, pg.cx - pw / 2, pg.headY - 80 * pg.k, pw, ph);
+    ctx.restore();
+
+    for (const it of state.items) drawSprite(it.name, it.x + Math.sin(it.wobble) * 4, it.y, it.r * 2.2);
+
+    if (state.ball) {
+      const b = state.ball;
+      const br = ballR();
+      // тень на бортике — подсказывает, куда падает мяч
+      ctx.fillStyle = 'rgba(40, 60, 80, 0.22)';
+      ctx.beginPath();
+      ctx.ellipse(b.x, pg.headY + pg.headR * 0.9, br * 0.8, br * 0.22, 0, 0, Math.PI * 2);
+      ctx.fill();
+      drawSprite('ball_main', b.x, b.y, br * 2.1, b.spin);
+    }
+
+    for (const e of state.effects) {
+      const a = Math.max(0, 1 - e.t / e.life);
+      if (e.kind === 'splash') {
+        drawSprite('trap_splash', e.x, e.y - 10 - e.t * 20, ballR() * 3, 0, a);
+      } else {
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.font = '900 22px Nunito, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = '#fff';
+        ctx.fillStyle = e.good ? '#2f8a2f' : '#c62828';
+        const y = e.y - e.t * 50;
+        ctx.strokeText(e.text, e.x, y);
+        ctx.fillText(e.text, e.x, y);
+        ctx.restore();
+      }
+    }
+    if (state.hurtT > 0) {
+      ctx.fillStyle = `rgba(220, 40, 40, ${0.35 * (state.hurtT / 0.35)})`;
+      ctx.fillRect(0, 0, size.w, size.h);
+    }
+  }
+
+  const ready = preloadBallGame().then((a) => { assets = a; render(); });
+
+  /** Итог 0..100 для каркаса (пороги звёзд — 60/90): очки к целевым TARGET_SCORE. */
+  function resultScore() {
+    return Math.round(Math.min(1, state.score / TARGET_SCORE) * 100);
+  }
+
+  function destroy() {
+    control.destroy();
+    field.destroy();
+  }
+
+  // _state — только для автотестов (tests/), игра его не читает
+  return { ready, update, resultScore, destroy, _state: state, _geom: () => ({ ...paddleGeom(), waterY: waterY(), ballR: ballR() }) };
+}
+
+  return { preloadBallGame, createBallGame };
+})();
+
 __mod["ui/minigameScreen.js"] = (function () {
 const { createPanel, createRibbon, createButton, createModal, createCloseButton, createProgressBar, createStarRow, createHeartsRow, flyCoinsTo, spawnConfetti } = __mod["ui/components.js"];
 const { icon } = __mod["ui/icons.js"];
@@ -5602,6 +6097,7 @@ const { CONFIG } = __mod["data/config.js"];
 const { Storage } = __mod["engine/storage.js"];
 const { Sound } = __mod["engine/sound.js"];
 const { createCatchFood, preloadCatchFood } = __mod["minigames/catchFood.js"];
+const { createBallGame, preloadBallGame } = __mod["minigames/ballGame.js"];
 // Общий каркас экранов мини-игр (раздел 3.6 ТЗ этапа 2): правила -> отсчёт ->
 // HUD с паузой -> результат. Геймплей игры подключается через GAMEPLAY
 // (src/minigames/*); у игр без геймплея — заглушка "Симулировать результат"
@@ -5617,12 +6113,14 @@ const { createCatchFood, preloadCatchFood } = __mod["minigames/catchFood.js"];
 
 
 
+
 const ROUND_SECONDS = 15; // длительность полосы времени в заглушке геймплея
 
 // id игры -> { create, preload }. create монтирует поле в host и возвращает
 // { ready, update(dt, progress), resultScore(), destroy() }.
 const GAMEPLAY = {
   catchFoodMinigame: { create: createCatchFood, preload: preloadCatchFood },
+  ballMinigame: { create: createBallGame, preload: preloadBallGame },
 };
 
 function el(tag, className, attrs = {}) {

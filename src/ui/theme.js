@@ -1031,6 +1031,32 @@ const DESIGN_TOKENS_CSS = `
     .msc-quiz-question__text { font-size: var(--msc-fs-body-m); }
   }
 
+  /* ============================== МАГАЗИН (раздел 3.7) ============================== */
+  .msc-shop-panel { width: min(560px, 100%); height: 100%; }
+  .msc-shop-panel .msc-panel__body { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+  .msc-shop-stage {
+    flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+    display: flex; flex-direction: column; align-items: stretch; gap: 12px;
+    padding: 12px 4px 10px; position: relative;
+  }
+  .msc-shop-stage > .msc-ribbon { align-self: center; }
+  .msc-shop-balance {
+    align-self: center; display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: 999px;
+    background: var(--msc-panel-bottom); border: 2px solid var(--msc-gold);
+    font-weight: 900; color: var(--msc-text);
+  }
+  .msc-shop-balance__icon { width: 22px; height: 22px; }
+  .msc-shop-list { display: flex; flex-direction: column; gap: 12px; }
+  .msc-shop-card .msc-card__image { height: auto; aspect-ratio: 16 / 9; background: #f4efe4; }
+  .msc-shop-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .msc-shop-card .msc-card__body { padding: 10px 14px 12px; gap: 6px; }
+  .msc-shop-card .msc-card__title { font-size: var(--msc-fs-body-m); }
+  .msc-shop-card.is-bought { opacity: .92; }
+  .msc-shop-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 2px; }
+  .msc-shop-lack { font-size: 13px; font-weight: 800; color: var(--msc-gray-text); }
+  .msc-finale-note { margin: 0; font-size: 13px; font-weight: 800; color: var(--msc-gray-text); }
+
   /* ============================== КАРТА (раздел 3.8) ============================== */
   .msc-map-panel { width: min(560px, 100%); height: 100%; }
   .msc-map-panel .msc-panel__body { height: 100%; display: flex; flex-direction: column; overflow: hidden; }

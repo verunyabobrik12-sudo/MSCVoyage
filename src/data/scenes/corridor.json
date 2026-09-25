@@ -31,14 +31,6 @@
       "spawnAt": [375, 320]
     },
     {
-      "id": "toElevators",
-      "target": "elevators",
-      "marker": [95, 260],
-      "trigger": { "shape": "rect", "x": 175, "y": 290, "w": 70, "h": 140 },
-      "label": "Пройти к лифтам?",
-      "spawnAt": [220, 340]
-    },
-    {
       "id": "toPool",
       "target": "pool",
       "marker": [95, 940],

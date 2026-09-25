@@ -23,6 +23,7 @@ import { openMinigame } from '../ui/minigameScreen.js';
 import { openPostcards } from '../ui/postcardsScreen.js';
 import { openFinale } from '../ui/finaleScreen.js';
 import { openMap } from '../ui/mapScreen.js';
+import { openShop } from '../ui/shopScreen.js';
 import { createToastLayer, createPanel, createButton, createModal } from '../ui/components.js';
 import { QUIZZES } from '../data/quizzes.js';
 import { MINIGAMES } from '../data/minigames.js';
@@ -265,6 +266,9 @@ export async function runGame() {
     }));
     withPausedWorld((resume) => openMap({ container: uiLayer, groups, onTravel: travelTo, onClose: resume }));
   }
+  function showShop() {
+    withPausedWorld((resume) => openShop({ container: uiLayer, onPointsChanged: (n) => hud?.setPoints(n), onClose: resume }));
+  }
   async function travelTo(id) {
     const { sceneData, bgImage } = await loadScene(id);
     enterScene(sceneData, bgImage, sceneData.spawn, null);
@@ -387,7 +391,7 @@ export async function runGame() {
       muted: Sound.isMuted(),
       onOpenMap: () => showMap(),
       onOpenPostcards: () => showPostcards(),
-      onOpenShop: () => toastLayer.show('Магазин появится в следующем шаге', { iconName: 'shop' }),
+      onOpenShop: () => showShop(),
       onToggleSound: () => { Sound.unlock(); Sound.toggleMute(); hud.setMuted(Sound.isMuted()); },
       onOpenMenu: () => {
         hud.setDimmed(true);

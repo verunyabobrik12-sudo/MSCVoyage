@@ -675,7 +675,7 @@ const CONFIG = {
   // Контакты агентства на финальном экране. Пустое поле — строка не показывается.
   contacts: {
     company: 'НеобхоДима Тревел',
-    // из каталогов турфирм (holiday.by, vp.by), не с сайта агентства — TODO: подтвердить у Вероники
+    // подтвердила Вероника 2026-09-25 (источник — каталоги турфирм holiday.by, vp.by)
     phone: '+375 (44) 788-44-22',
     site: '',
     social: '',
@@ -684,6 +684,47 @@ const CONFIG = {
 };
 
   return { CONFIG };
+})();
+
+__mod["data/excursions.js"] = (function () {
+
+// Экскурсии в «Магазине» (раздел 3.7) — на что тратить баллы. Игра заходит
+// только в Рим, поэтому экскурсии римские. Описания — только общеизвестное,
+// без цен, дат и длительностей. Картинки — assets/shop/*.jpg (tools/prepare_shop.ps1).
+// Сумма цен 330 — чуть меньше максимума за прохождение (~360, см. CONFIG.ranks).
+
+const EXCURSIONS = [
+  {
+    id: 'oldrome',
+    title: 'Прогулка по старому Риму',
+    desc: 'Узкие улочки, черепичные крыши, цветы на балконах и уютные площади.',
+    price: 50,
+    image: 'assets/shop/oldrome.jpg',
+  },
+  {
+    id: 'food',
+    title: 'Гастрономический тур',
+    desc: 'Паста, пицца и тирамису — пробуем блюда, ради которых едут в Италию.',
+    price: 70,
+    image: 'assets/shop/food.jpg',
+  },
+  {
+    id: 'colosseum',
+    title: 'Колизей и Римский форум',
+    desc: 'Самый знаменитый амфитеатр Древнего Рима и руины форума рядом с ним.',
+    price: 90,
+    image: 'assets/shop/colosseum.jpg',
+  },
+  {
+    id: 'vatican',
+    title: 'Ватикан и собор Святого Петра',
+    desc: 'Самое маленькое государство в мире и собор с огромным куполом над Римом.',
+    price: 120,
+    image: 'assets/shop/vatican.jpg',
+  },
+];
+
+  return { EXCURSIONS };
 })();
 
 __mod["data/minigames.js"] = (function () {
@@ -2911,6 +2952,32 @@ const DESIGN_TOKENS_CSS = `
     .msc-quiz-answer { min-height: 46px; padding: 6px 16px; }
     .msc-quiz-question__text { font-size: var(--msc-fs-body-m); }
   }
+
+  /* ============================== МАГАЗИН (раздел 3.7) ============================== */
+  .msc-shop-panel { width: min(560px, 100%); height: 100%; }
+  .msc-shop-panel .msc-panel__body { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+  .msc-shop-stage {
+    flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+    display: flex; flex-direction: column; align-items: stretch; gap: 12px;
+    padding: 12px 4px 10px; position: relative;
+  }
+  .msc-shop-stage > .msc-ribbon { align-self: center; }
+  .msc-shop-balance {
+    align-self: center; display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: 999px;
+    background: var(--msc-panel-bottom); border: 2px solid var(--msc-gold);
+    font-weight: 900; color: var(--msc-text);
+  }
+  .msc-shop-balance__icon { width: 22px; height: 22px; }
+  .msc-shop-list { display: flex; flex-direction: column; gap: 12px; }
+  .msc-shop-card .msc-card__image { height: auto; aspect-ratio: 16 / 9; background: #f4efe4; }
+  .msc-shop-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .msc-shop-card .msc-card__body { padding: 10px 14px 12px; gap: 6px; }
+  .msc-shop-card .msc-card__title { font-size: var(--msc-fs-body-m); }
+  .msc-shop-card.is-bought { opacity: .92; }
+  .msc-shop-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 2px; }
+  .msc-shop-lack { font-size: 13px; font-weight: 800; color: var(--msc-gray-text); }
+  .msc-finale-note { margin: 0; font-size: 13px; font-weight: 800; color: var(--msc-gray-text); }
 
   /* ============================== КАРТА (раздел 3.8) ============================== */
   .msc-map-panel { width: min(560px, 100%); height: 100%; }
@@ -7057,12 +7124,14 @@ const { icon } = __mod["ui/icons.js"];
 const { CONFIG } = __mod["data/config.js"];
 const { STRINGS } = __mod["data/strings.ru.js"];
 const { POSTCARDS } = __mod["data/postcards.js"];
+const { EXCURSIONS } = __mod["data/excursions.js"];
 const { Storage } = __mod["engine/storage.js"];
 const { Sound } = __mod["engine/sound.js"];
 // Финальный экран (раздел 3.11): показывается один раз, когда пройдены все
 // задания (викторины + мини-игры); повторно — из альбома открыток кнопкой
 // «Итоги путешествия». Звание по баллам, собранные открытки, компании и
 // контакты агентства. Пустые поля контактов (CONFIG.contacts) не показываются.
+
 
 
 
@@ -7119,6 +7188,10 @@ function openFinale({ container, onPostcards, onClose }) {
     strip.appendChild(img);
   }
   stage.appendChild(strip);
+  const bought = EXCURSIONS.filter((x) => s.purchasedExcursions[x.id]).length;
+  stage.appendChild(el('p', 'msc-finale-note', { text: bought
+    ? `Экскурсий в Риме: ${bought} из ${EXCURSIONS.length}`
+    : 'Загляните в «Магазин» — за баллы там можно выбрать экскурсии в Риме' }));
 
   // Компании — тем же «маркером», что и на заставке
   stage.appendChild(el('div', 'msc-finale-partners', { text: STRINGS.title.partners }));
@@ -7240,6 +7313,92 @@ function openMap({ container, groups, onTravel, onClose }) {
   return { openMap };
 })();
 
+__mod["ui/shopScreen.js"] = (function () {
+const { createPanel, createRibbon, createButton, createModal, createCloseButton, createCard, spawnConfetti } = __mod["ui/components.js"];
+const { icon } = __mod["ui/icons.js"];
+const { EXCURSIONS } = __mod["data/excursions.js"];
+const { Storage } = __mod["engine/storage.js"];
+const { Sound } = __mod["engine/sound.js"];
+// «Магазин» (кнопка в HUD и табличка баллов, раздел 3.7): экскурсии за баллы.
+// Купленная — с лентой «Куплено»; на недоступную показываем, сколько не хватает.
+
+
+
+
+
+
+
+function el(tag, className, attrs = {}) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'text') node.textContent = v;
+    else if (k === 'html') node.innerHTML = v;
+    else node.setAttribute(k, v);
+  }
+  return node;
+}
+
+/** @param {{container:HTMLElement, onPointsChanged:(n:number)=>void, onClose?:Function}} opts */
+function openShop({ container, onPointsChanged, onClose }) {
+  const { el: panel, body } = createPanel({ className: 'msc-shop-panel' });
+  const stage = el('div', 'msc-shop-stage');
+  body.appendChild(stage);
+  panel.appendChild(createCloseButton({ onClick: () => modal.close() }));
+  const modal = createModal({ bodyEl: panel, container, full: true, onRequestClose: () => modal.close(), onClose });
+
+  function render() {
+    const scrollTop = stage.scrollTop;
+    stage.innerHTML = '';
+    const s = Storage.get();
+    stage.appendChild(createRibbon('Экскурсии'));
+    const balance = el('div', 'msc-shop-balance');
+    balance.appendChild(el('span', 'msc-shop-balance__icon', { html: icon('coin') }));
+    balance.appendChild(el('span', null, { text: `У вас ${s.points} баллов` }));
+    stage.appendChild(balance);
+
+    const list = el('div', 'msc-shop-list');
+    for (const x of EXCURSIONS) {
+      const bought = !!s.purchasedExcursions[x.id];
+      const footer = el('div', 'msc-shop-footer');
+      const price = el('span', 'msc-card__price');
+      price.innerHTML = icon('coin');
+      price.appendChild(el('span', null, { text: String(x.price) }));
+      footer.appendChild(price);
+      if (!bought) {
+        const lack = x.price - s.points;
+        if (lack > 0) {
+          footer.appendChild(el('span', 'msc-shop-lack', { text: `Не хватает ${lack}` }));
+        } else {
+          const buy = createButton({ label: 'Купить', variant: 'green', size: 's' });
+          buy.button.addEventListener('click', () => {
+            Storage.addPoints(-x.price);
+            Storage.purchaseExcursion(x.id);
+            Sound.points();
+            onPointsChanged?.(Storage.get().points);
+            render();
+            spawnConfetti(stage, { count: 14 });
+          });
+          footer.appendChild(buy.el);
+        }
+      }
+      const img = el('img', 'msc-shop-img', { src: x.image, alt: '', loading: 'lazy' });
+      const card = createCard({ imageContent: img, title: x.title, desc: x.desc, footer, purchased: bought });
+      card.classList.add('msc-shop-card');
+      if (bought) card.classList.add('is-bought');
+      list.appendChild(card);
+    }
+    stage.appendChild(list);
+    stage.scrollTop = scrollTop;
+  }
+
+  modal.open();
+  render();
+}
+
+  return { openShop };
+})();
+
 __mod["engine/illustratedBootstrap.js"] = (function () {
 const { IllustratedScene } = __mod["engine/illustratedScene.js"];
 const { Input } = __mod["engine/input.js"];
@@ -7258,6 +7417,7 @@ const { openMinigame } = __mod["ui/minigameScreen.js"];
 const { openPostcards } = __mod["ui/postcardsScreen.js"];
 const { openFinale } = __mod["ui/finaleScreen.js"];
 const { openMap } = __mod["ui/mapScreen.js"];
+const { openShop } = __mod["ui/shopScreen.js"];
 const { createToastLayer, createPanel, createButton, createModal } = __mod["ui/components.js"];
 const { QUIZZES } = __mod["data/quizzes.js"];
 const { MINIGAMES } = __mod["data/minigames.js"];
@@ -7268,6 +7428,7 @@ const { MINIGAMES } = __mod["data/minigames.js"];
 //   runIllustratedTest() — одна сцена без титула/HUD, только мир + DOM-окна
 //                          "Да/Нет"/факт — используется для QA разметки
 //                          конкретной локации (?scene=rome и т.п.).
+
 
 
 
@@ -7528,6 +7689,9 @@ async function runGame() {
     }));
     withPausedWorld((resume) => openMap({ container: uiLayer, groups, onTravel: travelTo, onClose: resume }));
   }
+  function showShop() {
+    withPausedWorld((resume) => openShop({ container: uiLayer, onPointsChanged: (n) => hud?.setPoints(n), onClose: resume }));
+  }
   async function travelTo(id) {
     const { sceneData, bgImage } = await loadScene(id);
     enterScene(sceneData, bgImage, sceneData.spawn, null);
@@ -7650,7 +7814,7 @@ async function runGame() {
       muted: Sound.isMuted(),
       onOpenMap: () => showMap(),
       onOpenPostcards: () => showPostcards(),
-      onOpenShop: () => toastLayer.show('Магазин появится в следующем шаге', { iconName: 'shop' }),
+      onOpenShop: () => showShop(),
       onToggleSound: () => { Sound.unlock(); Sound.toggleMute(); hud.setMuted(Sound.isMuted()); },
       onOpenMenu: () => {
         hud.setDimmed(true);

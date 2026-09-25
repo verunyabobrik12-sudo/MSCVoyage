@@ -8,6 +8,7 @@ import { icon } from './icons.js';
 import { CONFIG } from '../data/config.js';
 import { STRINGS } from '../data/strings.ru.js';
 import { POSTCARDS } from '../data/postcards.js';
+import { EXCURSIONS } from '../data/excursions.js';
 import { Storage } from '../engine/storage.js';
 import { Sound } from '../engine/sound.js';
 
@@ -58,6 +59,10 @@ export function openFinale({ container, onPostcards, onClose }) {
     strip.appendChild(img);
   }
   stage.appendChild(strip);
+  const bought = EXCURSIONS.filter((x) => s.purchasedExcursions[x.id]).length;
+  stage.appendChild(el('p', 'msc-finale-note', { text: bought
+    ? `Экскурсий в Риме: ${bought} из ${EXCURSIONS.length}`
+    : 'Загляните в «Магазин» — за баллы там можно выбрать экскурсии в Риме' }));
 
   // Компании — тем же «маркером», что и на заставке
   stage.appendChild(el('div', 'msc-finale-partners', { text: STRINGS.title.partners }));

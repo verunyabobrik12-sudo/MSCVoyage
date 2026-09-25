@@ -779,32 +779,72 @@ const DESIGN_TOKENS_CSS = `
     /* готовая иллюстрация; цвет — на время загрузки картинки */
     background: #9ED3EE url("assets/title/title_bg.jpg") center / cover no-repeat;
   }
-  .msc-title-hero {
-    margin-top: auto; /* прижимает героиню и кнопки к низу */
-    margin-bottom: -58px; /* ноги за кнопкой «Играть» */
-    align-self: flex-start;
-    margin-left: 4%;
-    height: min(250px, 38%);
-    flex: none;
-    background-repeat: no-repeat;
-    filter: drop-shadow(0 10px 10px rgba(0,0,0,.3));
-    pointer-events: none;
-  }
-  .msc-title-hero + .msc-title-buttons { margin-top: 0; position: relative; }
   .msc-title-content {
     position: absolute; inset: 0;
     display: flex; flex-direction: column; align-items: center;
     padding: 6% 6% 4%;
   }
-  .msc-title-banner { margin-top: 4%; text-align: center; }
-  .msc-title-banner .msc-ribbon { padding: 14px 32px; }
-  .msc-title-banner .msc-ribbon__text { font-size: var(--msc-fs-title-l); }
-  .msc-title-subtitle {
-    margin-top: 10px;
+  /* Логотип заставки. Размеры — от ширины рамки игры (cqi), чтобы в узкой
+     рамке на десктопе и на телефоне пропорции были одинаковые. */
+  .msc-logo {
+    --logo-navy: #123A66;
+    margin-top: 30px; /* ниже круглой кнопки звука (top 14px + 44px) */
+    display: flex; flex-direction: column; align-items: center;
+    text-align: center;
+    filter: drop-shadow(0 8px 18px rgba(8, 36, 72, .28));
+  }
+  .msc-logo__brand {
+    display: flex; align-items: center; gap: .6em;
+    font-weight: 900;
+    font-size: clamp(14px, 4.4cqi, 22px);
+    color: #FFD76A;
+    -webkit-text-stroke: .22em var(--logo-navy);
+    paint-order: stroke fill;
+  }
+  .msc-logo__brand-text { letter-spacing: .5em; margin-right: -.5em; }
+  .msc-logo__line {
+    width: clamp(28px, 11cqi, 64px); height: 3px; border-radius: 2px;
+    background: linear-gradient(90deg, rgba(255,215,106,0), #FFD76A);
+    box-shadow: 0 1px 0 var(--logo-navy);
+  }
+  .msc-logo__line:last-child { background: linear-gradient(90deg, #FFD76A, rgba(255,215,106,0)); }
+  .msc-logo__word {
+    position: relative;
+    isolation: isolate;
+    margin-top: .05em;
+    font-weight: 900;
+    font-size: clamp(46px, 16.5cqi, 84px);
+    line-height: 1;
+    letter-spacing: .03em;
+  }
+  /* нижний слой: толстая обводка + «экструзия» вниз */
+  .msc-logo__word::before {
+    content: attr(data-text);
+    position: absolute; inset: 0;
+    z-index: -1;
+    color: var(--logo-navy);
+    -webkit-text-stroke: .16em var(--logo-navy);
+    text-shadow: 0 .07em 0 #0B2747, 0 .12em .14em rgba(0,0,0,.28);
+  }
+  /* верхний слой: заливка белый -> тёплое золото */
+  .msc-logo__fill {
+    position: relative;
+    background: linear-gradient(180deg, #FFFFFF 0%, #FFFFFF 42%, #FFE6A3 60%, #F5B342 100%);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
+  }
+  .msc-logo__subtitle {
+    margin-top: .9em;
+    padding: .45em 1.3em .45em 1.6em;
+    border-radius: 999px;
+    background: rgba(18, 58, 102, .55);
+    border: 1px solid rgba(255, 215, 106, .55);
     color: #fff;
     font-weight: 800;
-    font-size: var(--msc-fs-body-m);
-    text-shadow: 0 2px 3px rgba(0,0,0,.35);
+    font-size: clamp(11px, 3.2cqi, 15px);
+    letter-spacing: .28em;
+    text-transform: uppercase;
+    backdrop-filter: blur(2px);
   }
   .msc-title-buttons {
     margin-top: auto;

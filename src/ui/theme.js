@@ -779,6 +779,18 @@ const DESIGN_TOKENS_CSS = `
     /* готовая иллюстрация; цвет — на время загрузки картинки */
     background: #9ED3EE url("assets/title/title_bg.jpg") center / cover no-repeat;
   }
+  .msc-title-hero {
+    margin-top: auto; /* прижимает героиню и кнопки к низу */
+    margin-bottom: -58px; /* ноги за кнопкой «Играть» */
+    align-self: flex-start;
+    margin-left: 4%;
+    height: min(250px, 38%);
+    flex: none;
+    background-repeat: no-repeat;
+    filter: drop-shadow(0 10px 10px rgba(0,0,0,.3));
+    pointer-events: none;
+  }
+  .msc-title-hero + .msc-title-buttons { margin-top: 0; position: relative; }
   .msc-title-content {
     position: absolute; inset: 0;
     display: flex; flex-direction: column; align-items: center;

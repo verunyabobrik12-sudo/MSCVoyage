@@ -1,8 +1,7 @@
 // Титульный экран (раздел 3.1 ТЗ этапа 2). HTML/CSS поверх canvas: фон —
 // готовая иллюстрация (assets/title/title_bg.jpg, лайнер у берегов Рима),
-// поверх — название и кнопки. Нарисованные кодом облака/волны/лайнер и
-// героиня убраны 2026-09-25: иллюстрация — законченная композиция, героине
-// на ней стоять не на чем (внизу море).
+// поверх — название, героиня и кнопки. Нарисованные кодом облака/волны/лайнер
+// убраны 2026-09-25 (они есть на иллюстрации).
 
 import { createRibbon, createButton } from './components.js';
 import { icon } from './icons.js';
@@ -20,12 +19,13 @@ function el(tag, className, attrs = {}) {
 }
 
 /**
- * @param {{container:HTMLElement, hasSave:boolean, muted:boolean, onPlay:Function, onNewGame:Function, onHowToPlay:Function, onToggleSound:Function}} opts
+ * @param {{container:HTMLElement, hasSave:boolean, muted:boolean, heroSprite:{sheetSrc,frameWidth,frameHeight,sheetWidth,sheetHeight,frameX,frameY}, onPlay:Function, onNewGame:Function, onHowToPlay:Function, onToggleSound:Function}} opts
  */
 export function createTitleScreen({
   container,
   hasSave = false,
   muted = false,
+  heroSprite,
   onPlay,
   onNewGame,
   onHowToPlay,
@@ -43,6 +43,22 @@ export function createTitleScreen({
   banner.appendChild(createRibbon(STRINGS.title.name));
   banner.appendChild(el('div', 'msc-title-subtitle', { text: STRINGS.title.subtitle }));
   content.appendChild(banner);
+
+  // Героиня стоит слева, ноги прячутся за кнопкой «Играть» — на иллюстрации
+  // внизу море, и без этого она «висит» над водой. Размер — от высоты экрана
+  // (CSS), поэтому фон спрайта задан в процентах, а не в пикселях.
+  if (heroSprite) {
+    const hero = el('div', 'msc-title-hero');
+    const cols = heroSprite.sheetWidth / heroSprite.frameWidth;
+    const rows = heroSprite.sheetHeight / heroSprite.frameHeight;
+    const col = heroSprite.frameX / heroSprite.frameWidth;
+    const row = heroSprite.frameY / heroSprite.frameHeight;
+    hero.style.backgroundImage = `url(${heroSprite.sheetSrc})`;
+    hero.style.backgroundSize = `${cols * 100}% ${rows * 100}%`;
+    hero.style.backgroundPosition = `${cols > 1 ? (col / (cols - 1)) * 100 : 0}% ${rows > 1 ? (row / (rows - 1)) * 100 : 0}%`;
+    hero.style.aspectRatio = `${heroSprite.frameWidth} / ${heroSprite.frameHeight}`;
+    content.appendChild(hero);
+  }
 
   const buttons = el('div', 'msc-title-buttons');
   if (hasSave) {

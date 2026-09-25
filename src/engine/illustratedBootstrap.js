@@ -373,6 +373,7 @@ export async function runGame() {
       container: uiLayer,
       hasSave: Storage.get().tutorialSeen,
       muted: Sound.isMuted(),
+      heroSprite: heroPortrait,
       onToggleSound: () => { Sound.unlock(); Sound.toggleMute(); title.setMuted(Sound.isMuted()); },
       onPlay: async () => {
         title.remove();

@@ -813,7 +813,7 @@ const DESIGN_TOKENS_CSS = `
     isolation: isolate;
     margin-top: .05em;
     font-weight: 900;
-    font-size: clamp(46px, 16.5cqi, 84px);
+    font-size: clamp(40px, 14.5cqi, 76px); /* «CRUISES» — 7 букв, шире прежнего «VOYAGE» */
     line-height: 1;
     letter-spacing: .03em;
   }
@@ -845,6 +845,16 @@ const DESIGN_TOKENS_CSS = `
     letter-spacing: .28em;
     text-transform: uppercase;
     backdrop-filter: blur(2px);
+  }
+  /* компании-партнёры — под подзаголовком, тише названия */
+  .msc-logo__partners {
+    margin-top: .7em;
+    color: #fff;
+    font-weight: 800;
+    font-size: clamp(12px, 3.6cqi, 16px);
+    letter-spacing: .04em;
+    -webkit-text-stroke: .2em var(--logo-navy);
+    paint-order: stroke fill;
   }
   .msc-title-buttons {
     margin-top: auto;

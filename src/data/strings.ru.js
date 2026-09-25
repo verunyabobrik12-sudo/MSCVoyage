@@ -2,8 +2,9 @@
 
 export const STRINGS = {
   title: {
-    name: 'MSC VOYAGE',
+    name: 'MSC CRUISES',
     subtitle: 'Круизное путешествие',
+    partners: 'PAC Group · НеобхоДима Тревел',
     play: 'Играть',
     continueGame: 'Продолжить',
     newGame: 'Новая игра',

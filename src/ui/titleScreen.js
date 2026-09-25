@@ -53,6 +53,7 @@ export function createTitleScreen({
   wordEl.appendChild(el('span', 'msc-logo__fill', { text: word }));
   logo.appendChild(wordEl);
   logo.appendChild(el('div', 'msc-logo__subtitle', { text: STRINGS.title.subtitle }));
+  logo.appendChild(el('div', 'msc-logo__partners', { text: STRINGS.title.partners }));
   content.appendChild(logo);
 
   const buttons = el('div', 'msc-title-buttons');

@@ -1706,6 +1706,44 @@ const { findScenePath } = __mod["engine/collisionGrid.js"];
 
 
 const ANIM_FPS = 8;
+// Запас при выборе направления: ось меняется, только если другая ось больше
+// текущей на 25%. Без него на диагонали ~45° поза щёлкала вправо/вниз.
+const DIR_HYSTERESIS = 1.25;
+
+/** Прямая видимость между точками: весь отрезок проходим с учётом хитбокса. */
+function hasLineOfSight(grid, ax, ay, bx, by) {
+  const dist = Math.hypot(bx - ax, by - ay);
+  const n = Math.ceil(dist / (grid.step / 2));
+  for (let i = 1; i <= n; i++) {
+    const t = i / n;
+    if (!grid.isWalkable(ax + (bx - ax) * t, ay + (by - ay) * t)) return false;
+  }
+  return true;
+}
+
+/**
+ * Спрямление пути A* по сетке: из каждой точки идём сразу к самой дальней
+ * видимой. Сеточный путь идёт «лесенкой» (прямо-диагональ-прямо), и на каждой
+ * ступеньке поза героини перещёлкивалась. Заодно отбрасывается первая точка —
+ * центр стартовой клетки, который мог оказаться за спиной (разворот на кадр).
+ */
+function smoothPath(grid, sx, sy, path) {
+  const out = [];
+  let cx = sx;
+  let cy = sy;
+  let i = 0;
+  while (i < path.length) {
+    let far = i;
+    for (let j = path.length - 1; j > i; j--) {
+      if (hasLineOfSight(grid, cx, cy, path[j].x, path[j].y)) { far = j; break; }
+    }
+    out.push(path[far]);
+    cx = path[far].x;
+    cy = path[far].y;
+    i = far + 1;
+  }
+  return out;
+}
 
 class IllustratedPlayer {
   constructor(x, y, sheetImage, meta) {
@@ -1723,7 +1761,7 @@ class IllustratedPlayer {
   moveTo(tx, ty, grid) {
     const path = findScenePath(grid, this.x, this.y, tx, ty);
     if (path) {
-      this.path = path;
+      this.path = smoothPath(grid, this.x, this.y, path);
       this.pathIndex = 0;
     }
     return !!path;
@@ -1776,11 +1814,13 @@ class IllustratedPlayer {
   }
 
   _updateDirection(dx, dy) {
-    if (Math.abs(dx) > Math.abs(dy)) {
-      this.dir = dx > 0 ? 'right' : 'left';
-    } else if (dy !== 0) {
-      this.dir = dy > 0 ? 'down' : 'up';
-    }
+    const ax = Math.abs(dx);
+    const ay = Math.abs(dy);
+    const horizontalNow = this.dir === 'left' || this.dir === 'right';
+    // остаёмся на текущей оси, пока другая не перевесит с запасом
+    const horizontal = horizontalNow ? ay <= ax * DIR_HYSTERESIS : ax > ay * DIR_HYSTERESIS;
+    if (horizontal && dx !== 0) this.dir = dx > 0 ? 'right' : 'left';
+    else if (!horizontal && dy !== 0) this.dir = dy > 0 ? 'down' : 'up';
   }
 
   _tryMove(dx, dy, grid) {

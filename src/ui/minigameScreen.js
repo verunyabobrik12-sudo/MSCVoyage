@@ -1,7 +1,6 @@
 // Общий каркас экранов мини-игр (раздел 3.6 ТЗ этапа 2): правила -> отсчёт ->
-// HUD с паузой -> результат. Геймплей игры подключается через GAMEPLAY
-// (src/minigames/*); у игр без геймплея — заглушка "Симулировать результат"
-// со случайным результатом, чтобы можно было проверить весь каркас целиком.
+// HUD с паузой -> результат. Сам геймплей каждой игры — в src/minigames/*,
+// подключается через GAMEPLAY.
 // Структура и приёмы (единый modal + перерисовка stage, подтверждение выхода,
 // летящие монеты) — по образцу src/ui/quizScreen.js, только без вопросов.
 
@@ -16,14 +15,16 @@ import { Storage } from '../engine/storage.js';
 import { Sound } from '../engine/sound.js';
 import { createCatchFood, preloadCatchFood } from '../minigames/catchFood.js';
 import { createBallGame, preloadBallGame } from '../minigames/ballGame.js';
+import { createRunnerGame, preloadRunnerGame } from '../minigames/runnerGame.js';
 
-const ROUND_SECONDS = 15; // длительность полосы времени в заглушке геймплея
+const ROUND_SECONDS = 45; // если у игры в данных не задан durationSec
 
 // id игры -> { create, preload }. create монтирует поле в host и возвращает
 // { ready, update(dt, progress), resultScore(), destroy() }.
 const GAMEPLAY = {
   catchFoodMinigame: { create: createCatchFood, preload: preloadCatchFood },
   ballMinigame: { create: createBallGame, preload: preloadBallGame },
+  coinsMinigame: { create: createRunnerGame, preload: preloadRunnerGame },
 };
 
 function el(tag, className, attrs = {}) {
@@ -44,11 +45,11 @@ function el(tag, className, attrs = {}) {
 export function openMinigame({ container, game, pointsBadgeEl, onPointsChanged, onFinish }) {
   let phase = 'intro'; // intro | countdown | play | pause | result
   let score = 0;
-  const gameplayDef = GAMEPLAY[game.id] || null;
-  const roundSeconds = gameplayDef ? (game.durationSec ?? ROUND_SECONDS) : ROUND_SECONDS;
+  const gameplayDef = GAMEPLAY[game.id];
+  const roundSeconds = game.durationSec ?? ROUND_SECONDS;
   let timeLeft = roundSeconds;
   let gameplay = null; // текущий экземпляр поля (пересоздаётся на "Ещё раз")
-  gameplayDef?.preload().catch(() => {}); // грузим картинки, пока читают правила
+  gameplayDef.preload().catch(() => {}); // грузим картинки, пока читают правила
   let rafId = null;
   let lastT = 0;
   let barApi = null;
@@ -148,7 +149,7 @@ export function openMinigame({ container, game, pointsBadgeEl, onPointsChanged, 
     setTimeout(tick, 700);
   }
 
-  // --- 3) игровой HUD (заглушка геймплея) -----------------------------------
+  // --- 3) игровой HUD + поле игры -------------------------------------------
   function renderPlay() {
     phase = 'play';
     score = 0;
@@ -174,51 +175,36 @@ export function openMinigame({ container, game, pointsBadgeEl, onPointsChanged, 
 
     stage.appendChild(hud);
 
-    if (gameplayDef) {
-      const field = el('div', 'msc-minigame-field');
-      stage.appendChild(field);
-      gameplay = gameplayDef.create({
-        host: field,
-        lives: game.lives,
-        onScore: (n) => { scoreValue.textContent = String(n); Sound.click(); },
-        onLives: (n) => { hearts.setLives(n); Sound.wrong(); },
-        onGameOver: () => finishRound(),
-      });
-      window.__minigame = gameplay; // хук для автотестов, как window.__game
-      const current = gameplay;
-      // таймер стартует, только когда картинки загружены — иначе раунд шёл бы вхолостую
-      current.ready.then(() => { if (gameplay === current && phase === 'play') startLoop(); })
-        .catch(() => { if (gameplay === current) finishRound(); });
-      return;
-    }
-
-    const placeholder = el('div', 'msc-minigame-placeholder');
-    placeholder.appendChild(el('p', 'msc-minigame-placeholder__text', { text: STRINGS.minigame.placeholderNote }));
-    const simBtn = createButton({ label: STRINGS.minigame.simulate, variant: 'orange', size: 'l' });
-    simBtn.button.addEventListener('click', () => finishRound());
-    placeholder.appendChild(simBtn.el);
-    stage.appendChild(placeholder);
-
-    startLoop();
+    const field = el('div', 'msc-minigame-field');
+    stage.appendChild(field);
+    gameplay = gameplayDef.create({
+      host: field,
+      lives: game.lives,
+      onScore: (n) => { scoreValue.textContent = String(n); Sound.click(); },
+      onLives: (n) => { hearts.setLives(n); Sound.wrong(); },
+      onGameOver: () => finishRound(),
+    });
+    window.__minigame = gameplay; // хук для автотестов, как window.__game
+    const current = gameplay;
+    // таймер стартует, только когда картинки загружены — иначе раунд шёл бы вхолостую
+    current.ready.then(() => { if (gameplay === current && phase === 'play') startLoop(); })
+      .catch(() => { if (gameplay === current) finishRound(); });
   }
 
-  // Общий тик полосы времени + заглушечного счёта, используется и при первом
+  // Общий тик полосы времени и поля игры, используется и при первом
   // старте раунда, и при возврате из паузы (состояние round не сбрасывается).
   function startLoop() {
     if (rafId) return; // уже крутится (например, resume раньше загрузки картинок)
     lastT = performance.now();
     function frame(t) {
-      const dt = Math.min(0.05, (t - lastT) / 1000);
+      // max(0): метка кадра rAF бывает чуть раньше performance.now() из startLoop —
+      // первый dt отрицательный (в раннере это давало кадр бега с индексом -1)
+      const dt = Math.max(0, Math.min(0.05, (t - lastT) / 1000));
       lastT = t;
       timeLeft -= dt;
       barApi.setProgress((Math.max(0, timeLeft) / roundSeconds) * 100);
-      if (gameplay) {
-        gameplay.update(dt, 1 - Math.max(0, timeLeft) / roundSeconds);
-        if (phase !== 'play') return; // onGameOver внутри update уже завершил раунд
-      } else {
-        const scoreValue = stage.querySelector('.msc-minigame-hud__score-value');
-        if (scoreValue) scoreValue.textContent = String(Math.round((roundSeconds - timeLeft) * 4));
-      }
+      gameplay.update(dt, 1 - Math.max(0, timeLeft) / roundSeconds);
+      if (phase !== 'play') return; // onGameOver внутри update уже завершил раунд
       if (timeLeft <= 0) { finishRound(); return; }
       rafId = requestAnimationFrame(frame);
     }
@@ -284,14 +270,8 @@ export function openMinigame({ container, game, pointsBadgeEl, onPointsChanged, 
     if (phase === 'result') return;
     stopLoop();
     phase = 'result';
-    if (gameplay) {
-      score = gameplay.resultScore(); // 0..100
-      destroyGameplay();
-    } else {
-      // Заглушка: случайный результат раунда вместо реального геймплея —
-      // достаточно, чтобы проверить пороги звёзд/рекорд/начисление баллов.
-      score = Math.floor(40 + Math.random() * 61); // 40..100 игровых очков
-    }
+    score = gameplay ? gameplay.resultScore() : 0; // 0..100
+    destroyGameplay();
     renderResult();
   }
 

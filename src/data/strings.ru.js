@@ -75,8 +75,6 @@ export const STRINGS = {
     pauseTitle: 'Пауза',
     resume: 'Продолжить',
     exitConfirm: 'Выйти из игры? Баллы не будут начислены.',
-    simulate: 'Симулировать результат',
-    placeholderNote: 'Геймплей появится на следующем этапе — пока можно проверить экраны.',
     score: 'Очки',
     resultGreat: 'Отлично!',
     resultGood: 'Хорошая работа!',

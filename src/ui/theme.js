@@ -1051,7 +1051,6 @@ const DESIGN_TOKENS_CSS = `
     justify-content: center; padding-top: 8px;
   }
   .msc-minigame-stage:has(.msc-minigame-hud) { padding-top: 4px; }
-  .msc-minigame-placeholder { margin-top: 40px; }
   /* Игровое поле — занимает всё место под HUD; canvas размечается по нему. */
   .msc-minigame-stage:has(.msc-minigame-field) { overflow: hidden; gap: 10px; }
   .msc-minigame-field {
@@ -1092,14 +1091,6 @@ const DESIGN_TOKENS_CSS = `
   }
   .msc-minigame-hud__score-icon { width: 26px; height: 26px; }
   .msc-minigame-hud__bar { flex: 1; }
-  .msc-minigame-placeholder {
-    display: flex; flex-direction: column; align-items: center; gap: 14px;
-    padding: 18px; border-radius: 16px;
-    background: var(--msc-panel-bottom);
-    border: 3px dashed var(--msc-gold);
-    max-width: 420px;
-  }
-  .msc-minigame-placeholder__text { margin: 0; color: var(--msc-gray-text); font-weight: 700; line-height: 1.4; }
 
   .msc-minigame-pause-overlay {
     position: absolute; inset: 0;

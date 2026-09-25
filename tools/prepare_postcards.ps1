@@ -1,4 +1,4 @@
-﻿# Открытки для альбома (раздел 3.9): горизонтальные кадры 640x480 из готовых
+﻿# Открытки для альбома (раздел 3.9) и превью локаций для карты: горизонтальные кадры 640x480 из готовых
 # иллюстраций локаций. Полные фоны сцен (assets/scenes) весят по ~9 МБ — для
 # превью в альбоме слишком тяжело, поэтому отдельные лёгкие jpg.
 # Запуск: powershell -File tools/prepare_postcards.ps1
@@ -14,6 +14,8 @@ $cards = @(
   @{ id = 'rome';       src = 'assets/raw/scenes/rome.jfif';       rect = @(0, 0, 848, 636) },
   @{ id = 'restaurant'; src = 'assets/raw/scenes/restaurant.jfif'; rect = @(0, 0, 848, 636) },
   @{ id = 'pool';       src = 'assets/raw/scenes/pool.jfif';       rect = @(0, 120, 848, 636) },
+  # не открытка — превью коридора для карты (src/ui/mapScreen.js)
+  @{ id = 'corridor';   src = 'assets/raw/scenes/corridor.jfif';   rect = @(0, 300, 848, 636) },
   @{ id = 'trevi';      src = 'assets/minigames/runner/obstacles/fountain_finish.png'; rect = @(0, 40, 985, 739) }
 )
 

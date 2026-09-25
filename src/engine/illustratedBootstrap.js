@@ -22,6 +22,7 @@ import { openQuiz } from '../ui/quizScreen.js';
 import { openMinigame } from '../ui/minigameScreen.js';
 import { openPostcards } from '../ui/postcardsScreen.js';
 import { openFinale } from '../ui/finaleScreen.js';
+import { openMap } from '../ui/mapScreen.js';
 import { createToastLayer, createPanel, createButton, createModal } from '../ui/components.js';
 import { QUIZZES } from '../data/quizzes.js';
 import { MINIGAMES } from '../data/minigames.js';
@@ -238,6 +239,37 @@ export async function runGame() {
     Storage.set({ finaleSeen: true });
     withPausedWorld((resume) => openFinale({ container: uiLayer, onPostcards: showPostcards, onClose: resume }));
   }
+  // Карта: только разметка сцен (без 9-мегабайтных фонов) + прогресс заданий.
+  const MAP_GROUPS = [
+    { title: 'На борту лайнера', ids: ['cabin', 'corridor', 'restaurant', 'pool'] },
+    { title: 'На берегу', ids: ['rome'] },
+  ];
+  async function showMap() {
+    const datas = await Promise.all(MAP_GROUPS.flatMap((g) => g.ids).map((id) => loadJson(`src/data/scenes/${id}.json`)));
+    const byId = Object.fromEntries(datas.map((d) => [d.id, d]));
+    const groups = MAP_GROUPS.map((g) => ({
+      title: g.title,
+      places: g.ids.map((id) => {
+        const d = byId[id];
+        const hs = d.hotspots || [];
+        return {
+          id,
+          label: d.label,
+          thumb: `assets/postcards/${id}.jpg`,
+          current: scene?.data.id === id,
+          tasks: hs.filter((h) => h.type === 'quiz' || h.type === 'minigame')
+            .map((h) => ({ label: h.label, done: gameApi.isHotspotCompleted(h.id) })),
+          infoCount: hs.filter((h) => h.type === 'info').length,
+        };
+      }),
+    }));
+    withPausedWorld((resume) => openMap({ container: uiLayer, groups, onTravel: travelTo, onClose: resume }));
+  }
+  async function travelTo(id) {
+    const { sceneData, bgImage } = await loadScene(id);
+    enterScene(sceneData, bgImage, sceneData.spawn, null);
+  }
+
   /** После каждого задания: все пройдены и финал ещё не показывали — показать. */
   function maybeShowFinale() {
     if (computeProgress() >= 100 && !Storage.get().finaleSeen) showFinale();
@@ -353,7 +385,7 @@ export async function runGame() {
       points: Storage.get().points,
       progressPercent: computeProgress(),
       muted: Sound.isMuted(),
-      onOpenMap: () => toastLayer.show('Карта появится в следующем шаге', { iconName: 'map' }),
+      onOpenMap: () => showMap(),
       onOpenPostcards: () => showPostcards(),
       onOpenShop: () => toastLayer.show('Магазин появится в следующем шаге', { iconName: 'shop' }),
       onToggleSound: () => { Sound.unlock(); Sound.toggleMute(); hud.setMuted(Sound.isMuted()); },

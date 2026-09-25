@@ -2912,6 +2912,44 @@ const DESIGN_TOKENS_CSS = `
     .msc-quiz-question__text { font-size: var(--msc-fs-body-m); }
   }
 
+  /* ============================== КАРТА (раздел 3.8) ============================== */
+  .msc-map-panel { width: min(560px, 100%); height: 100%; }
+  .msc-map-panel .msc-panel__body { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+  .msc-map-stage {
+    flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+    display: flex; flex-direction: column; align-items: stretch; gap: 10px;
+    padding: 12px 4px 10px; text-align: center;
+  }
+  .msc-map-stage > .msc-ribbon { align-self: center; }
+  .msc-map-hint { margin: 0; font-weight: 800; color: var(--msc-gray-text); font-size: 13px; }
+  .msc-map-group {
+    margin-top: 4px; font-weight: 900; font-size: 13px; letter-spacing: .12em; text-transform: uppercase;
+    color: #123A66; text-align: left; padding-left: 4px;
+  }
+  .msc-map-list { display: flex; flex-direction: column; gap: 8px; }
+  .msc-map-place {
+    display: flex; gap: 10px; align-items: stretch; width: 100%;
+    padding: 8px; border-radius: 14px; cursor: pointer;
+    background: #fff; border: 3px solid var(--msc-gold);
+    box-shadow: 0 3px 0 rgba(59,36,20,.15);
+    font: inherit; color: var(--msc-text); text-align: left;
+    transition: transform .12s ease;
+  }
+  .msc-map-place:hover, .msc-map-place:focus-visible { transform: translateY(-2px); }
+  .msc-map-place.is-current { border-color: #2f8a2f; background: #F3FBEF; }
+  .msc-map-place__pic { position: relative; flex: none; width: 34%; max-width: 150px; aspect-ratio: 4 / 3; border-radius: 8px; overflow: hidden; }
+  .msc-map-place__pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .msc-map-place__here {
+    position: absolute; left: 4px; bottom: 4px; padding: 2px 8px; border-radius: 999px;
+    background: #2f8a2f; color: #fff; font-weight: 900; font-size: 11px;
+  }
+  .msc-map-place__info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; justify-content: center; }
+  .msc-map-place__name { font-weight: 900; font-size: var(--msc-fs-body-m); }
+  .msc-map-task { display: flex; gap: 6px; align-items: center; font-size: 12.5px; font-weight: 700; line-height: 1.2; color: var(--msc-gray-text); }
+  .msc-map-task.is-done { color: #2f8a2f; }
+  .msc-map-task__icon { width: 16px; height: 16px; flex: none; }
+  .msc-map-place__extra { font-size: 12px; font-weight: 700; color: var(--msc-gray-text); }
+
   /* ============================== ОТКРЫТКИ (раздел 3.9) ============================== */
   .msc-postcards-panel, .msc-finale-panel { width: min(560px, 100%); height: 100%; }
   .msc-postcards-panel .msc-panel__body, .msc-finale-panel .msc-panel__body {
@@ -7128,6 +7166,80 @@ function openFinale({ container, onPostcards, onClose }) {
   return { rankFor, openFinale };
 })();
 
+__mod["ui/mapScreen.js"] = (function () {
+const { createPanel, createRibbon, createModal, createCloseButton } = __mod["ui/components.js"];
+const { icon } = __mod["ui/icons.js"];
+const { Sound } = __mod["engine/sound.js"];
+// Карта (кнопка «Карта» в HUD, раздел 3.8): локации лайнера и берега,
+// задания в каждой с отметкой «пройдено», «Вы здесь» и быстрый переход по
+// тапу. Данные о локациях собирает illustratedBootstrap (разметка сцен +
+// прогресс) — сам экран про сцены и Storage ничего не знает.
+
+
+
+
+
+function el(tag, className, attrs = {}) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'text') node.textContent = v;
+    else if (k === 'html') node.innerHTML = v;
+    else node.setAttribute(k, v);
+  }
+  return node;
+}
+
+/**
+ * @param {{container:HTMLElement, groups:{title:string, places:{id,label,thumb,current,tasks:{label,done}[],infoCount}[]}[],
+ *          onTravel:(id:string)=>void, onClose?:Function}} opts
+ */
+function openMap({ container, groups, onTravel, onClose }) {
+  const { el: panel, body } = createPanel({ className: 'msc-map-panel' });
+  const stage = el('div', 'msc-map-stage');
+  body.appendChild(stage);
+  panel.appendChild(createCloseButton({ onClick: () => modal.close() }));
+  const modal = createModal({ bodyEl: panel, container, full: true, onRequestClose: () => modal.close(), onClose });
+
+  stage.appendChild(createRibbon('Карта'));
+  stage.appendChild(el('p', 'msc-map-hint', { text: 'Нажмите на место, чтобы перейти туда' }));
+
+  for (const g of groups) {
+    stage.appendChild(el('div', 'msc-map-group', { text: g.title }));
+    const list = el('div', 'msc-map-list');
+    for (const p of g.places) {
+      const card = el('button', `msc-map-place${p.current ? ' is-current' : ''}`, { type: 'button', 'aria-label': p.current ? `${p.label} — вы здесь` : `Перейти: ${p.label}` });
+      const pic = el('div', 'msc-map-place__pic');
+      pic.appendChild(el('img', null, { src: p.thumb, alt: '', loading: 'lazy' }));
+      if (p.current) pic.appendChild(el('span', 'msc-map-place__here', { text: 'Вы здесь' }));
+      card.appendChild(pic);
+      const info = el('div', 'msc-map-place__info');
+      info.appendChild(el('div', 'msc-map-place__name', { text: p.label }));
+      for (const t of p.tasks) {
+        const row = el('div', `msc-map-task${t.done ? ' is-done' : ''}`);
+        row.appendChild(el('span', 'msc-map-task__icon', { html: icon(t.done ? 'check' : 'star') }));
+        row.appendChild(el('span', null, { text: t.label }));
+        info.appendChild(row);
+      }
+      if (p.infoCount) info.appendChild(el('div', 'msc-map-place__extra', { text: `Интересных мест: ${p.infoCount}` }));
+      if (!p.tasks.length && !p.infoCount) info.appendChild(el('div', 'msc-map-place__extra', { text: 'Двери во все уголки лайнера' }));
+      card.appendChild(info);
+      card.addEventListener('click', () => {
+        Sound.click();
+        modal.close();
+        if (!p.current) onTravel(p.id);
+      });
+      list.appendChild(card);
+    }
+    stage.appendChild(list);
+  }
+
+  modal.open();
+}
+
+  return { openMap };
+})();
+
 __mod["engine/illustratedBootstrap.js"] = (function () {
 const { IllustratedScene } = __mod["engine/illustratedScene.js"];
 const { Input } = __mod["engine/input.js"];
@@ -7145,6 +7257,7 @@ const { openQuiz } = __mod["ui/quizScreen.js"];
 const { openMinigame } = __mod["ui/minigameScreen.js"];
 const { openPostcards } = __mod["ui/postcardsScreen.js"];
 const { openFinale } = __mod["ui/finaleScreen.js"];
+const { openMap } = __mod["ui/mapScreen.js"];
 const { createToastLayer, createPanel, createButton, createModal } = __mod["ui/components.js"];
 const { QUIZZES } = __mod["data/quizzes.js"];
 const { MINIGAMES } = __mod["data/minigames.js"];
@@ -7155,6 +7268,7 @@ const { MINIGAMES } = __mod["data/minigames.js"];
 //   runIllustratedTest() — одна сцена без титула/HUD, только мир + DOM-окна
 //                          "Да/Нет"/факт — используется для QA разметки
 //                          конкретной локации (?scene=rome и т.п.).
+
 
 
 
@@ -7388,6 +7502,37 @@ async function runGame() {
     Storage.set({ finaleSeen: true });
     withPausedWorld((resume) => openFinale({ container: uiLayer, onPostcards: showPostcards, onClose: resume }));
   }
+  // Карта: только разметка сцен (без 9-мегабайтных фонов) + прогресс заданий.
+  const MAP_GROUPS = [
+    { title: 'На борту лайнера', ids: ['cabin', 'corridor', 'restaurant', 'pool'] },
+    { title: 'На берегу', ids: ['rome'] },
+  ];
+  async function showMap() {
+    const datas = await Promise.all(MAP_GROUPS.flatMap((g) => g.ids).map((id) => loadJson(`src/data/scenes/${id}.json`)));
+    const byId = Object.fromEntries(datas.map((d) => [d.id, d]));
+    const groups = MAP_GROUPS.map((g) => ({
+      title: g.title,
+      places: g.ids.map((id) => {
+        const d = byId[id];
+        const hs = d.hotspots || [];
+        return {
+          id,
+          label: d.label,
+          thumb: `assets/postcards/${id}.jpg`,
+          current: scene?.data.id === id,
+          tasks: hs.filter((h) => h.type === 'quiz' || h.type === 'minigame')
+            .map((h) => ({ label: h.label, done: gameApi.isHotspotCompleted(h.id) })),
+          infoCount: hs.filter((h) => h.type === 'info').length,
+        };
+      }),
+    }));
+    withPausedWorld((resume) => openMap({ container: uiLayer, groups, onTravel: travelTo, onClose: resume }));
+  }
+  async function travelTo(id) {
+    const { sceneData, bgImage } = await loadScene(id);
+    enterScene(sceneData, bgImage, sceneData.spawn, null);
+  }
+
   /** После каждого задания: все пройдены и финал ещё не показывали — показать. */
   function maybeShowFinale() {
     if (computeProgress() >= 100 && !Storage.get().finaleSeen) showFinale();
@@ -7503,7 +7648,7 @@ async function runGame() {
       points: Storage.get().points,
       progressPercent: computeProgress(),
       muted: Sound.isMuted(),
-      onOpenMap: () => toastLayer.show('Карта появится в следующем шаге', { iconName: 'map' }),
+      onOpenMap: () => showMap(),
       onOpenPostcards: () => showPostcards(),
       onOpenShop: () => toastLayer.show('Магазин появится в следующем шаге', { iconName: 'shop' }),
       onToggleSound: () => { Sound.unlock(); Sound.toggleMute(); hud.setMuted(Sound.isMuted()); },

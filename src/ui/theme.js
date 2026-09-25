@@ -1031,6 +1031,44 @@ const DESIGN_TOKENS_CSS = `
     .msc-quiz-question__text { font-size: var(--msc-fs-body-m); }
   }
 
+  /* ============================== КАРТА (раздел 3.8) ============================== */
+  .msc-map-panel { width: min(560px, 100%); height: 100%; }
+  .msc-map-panel .msc-panel__body { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+  .msc-map-stage {
+    flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+    display: flex; flex-direction: column; align-items: stretch; gap: 10px;
+    padding: 12px 4px 10px; text-align: center;
+  }
+  .msc-map-stage > .msc-ribbon { align-self: center; }
+  .msc-map-hint { margin: 0; font-weight: 800; color: var(--msc-gray-text); font-size: 13px; }
+  .msc-map-group {
+    margin-top: 4px; font-weight: 900; font-size: 13px; letter-spacing: .12em; text-transform: uppercase;
+    color: #123A66; text-align: left; padding-left: 4px;
+  }
+  .msc-map-list { display: flex; flex-direction: column; gap: 8px; }
+  .msc-map-place {
+    display: flex; gap: 10px; align-items: stretch; width: 100%;
+    padding: 8px; border-radius: 14px; cursor: pointer;
+    background: #fff; border: 3px solid var(--msc-gold);
+    box-shadow: 0 3px 0 rgba(59,36,20,.15);
+    font: inherit; color: var(--msc-text); text-align: left;
+    transition: transform .12s ease;
+  }
+  .msc-map-place:hover, .msc-map-place:focus-visible { transform: translateY(-2px); }
+  .msc-map-place.is-current { border-color: #2f8a2f; background: #F3FBEF; }
+  .msc-map-place__pic { position: relative; flex: none; width: 34%; max-width: 150px; aspect-ratio: 4 / 3; border-radius: 8px; overflow: hidden; }
+  .msc-map-place__pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .msc-map-place__here {
+    position: absolute; left: 4px; bottom: 4px; padding: 2px 8px; border-radius: 999px;
+    background: #2f8a2f; color: #fff; font-weight: 900; font-size: 11px;
+  }
+  .msc-map-place__info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; justify-content: center; }
+  .msc-map-place__name { font-weight: 900; font-size: var(--msc-fs-body-m); }
+  .msc-map-task { display: flex; gap: 6px; align-items: center; font-size: 12.5px; font-weight: 700; line-height: 1.2; color: var(--msc-gray-text); }
+  .msc-map-task.is-done { color: #2f8a2f; }
+  .msc-map-task__icon { width: 16px; height: 16px; flex: none; }
+  .msc-map-place__extra { font-size: 12px; font-weight: 700; color: var(--msc-gray-text); }
+
   /* ============================== ОТКРЫТКИ (раздел 3.9) ============================== */
   .msc-postcards-panel, .msc-finale-panel { width: min(560px, 100%); height: 100%; }
   .msc-postcards-panel .msc-panel__body, .msc-finale-panel .msc-panel__body {

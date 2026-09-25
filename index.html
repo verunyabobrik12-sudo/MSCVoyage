@@ -663,21 +663,23 @@ const CONFIG = {
   // Длительность затемнения при переходах между локациями, мс.
   transitionMs: 400,
 
-  // Финальный экран — звания по итоговому счёту баллов.
+  // Финальный экран — звания по итоговому счёту баллов. За первое прохождение
+  // максимум ~360 (2 викторины по 6 вопросов: до 240; 3 мини-игры: до 120).
   ranks: [
     { minScore: 0, title: 'Юнга' },
-    { minScore: 150, title: 'Матрос' },
-    { minScore: 350, title: 'Помощник капитана' },
-    { minScore: 600, title: 'Капитан' },
+    { minScore: 120, title: 'Матрос' },
+    { minScore: 220, title: 'Помощник капитана' },
+    { minScore: 300, title: 'Капитан' },
   ],
 
-  // Контакты и промокод для финального экрана — правьте под актуальные данные.
+  // Контакты агентства на финальном экране. Пустое поле — строка не показывается.
   contacts: {
-    company: 'ПАК ГРУПП', // TODO: проверить точное официальное название
-    phone: '+7 (000) 000-00-00', // TODO: указать реальный телефон
-    site: 'pac.ru', // TODO: проверить актуальный домен
-    social: '@pacgroup', // TODO: указать реальный аккаунт соцсети
-    promoCode: '', // TODO: указать промокод, если он есть; пусто — блок не показывается
+    company: 'НеобхоДима Тревел',
+    // из каталогов турфирм (holiday.by, vp.by), не с сайта агентства — TODO: подтвердить у Вероники
+    phone: '+375 (44) 788-44-22',
+    site: '',
+    social: '',
+    promoCode: '',
   },
 };
 
@@ -731,6 +733,25 @@ const MINIGAMES = {
 };
 
   return { MINIGAMES };
+})();
+
+__mod["data/postcards.js"] = (function () {
+
+// Открытки (раздел 3.9): по одной за каждое задание игры. id совпадает с
+// postcardId, который открывают викторины (HOTSPOT_QUIZ в illustratedBootstrap)
+// и мини-игры (src/data/minigames.js). Картинки — assets/postcards/*.jpg
+// (tools/prepare_postcards.ps1). Подписи — описание картинки, без фактов,
+// которые нужно было бы проверять.
+
+const POSTCARDS = [
+  { id: 'cabin', title: 'Каюта', caption: 'Каюта с балконом и видом на море', hint: 'Пройдите викторину в каюте', image: 'assets/postcards/cabin.jpg' },
+  { id: 'restaurant', title: 'Ресторан', caption: 'Ресторан на борту лайнера', hint: 'Сыграйте в «Поймай итальянское» в ресторане', image: 'assets/postcards/restaurant.jpg' },
+  { id: 'pool', title: 'Бассейн', caption: 'Бассейн на верхней палубе', hint: 'Сыграйте в «Не урони мяч» у бассейна', image: 'assets/postcards/pool.jpg' },
+  { id: 'rome', title: 'Рим', caption: 'Площадь в Риме', hint: 'Пройдите викторину на площади в Риме', image: 'assets/postcards/rome.jpg' },
+  { id: 'trevi', title: 'Фонтан Треви', caption: 'Финиш забега по Риму', hint: 'Сыграйте в «Монетки Треви» в Риме', image: 'assets/postcards/trevi.jpg' },
+];
+
+  return { POSTCARDS };
 })();
 
 __mod["data/quizzes.js"] = (function () {
@@ -2891,6 +2912,93 @@ const DESIGN_TOKENS_CSS = `
     .msc-quiz-question__text { font-size: var(--msc-fs-body-m); }
   }
 
+  /* ============================== ОТКРЫТКИ (раздел 3.9) ============================== */
+  .msc-postcards-panel, .msc-finale-panel { width: min(560px, 100%); height: 100%; }
+  .msc-postcards-panel .msc-panel__body, .msc-finale-panel .msc-panel__body {
+    height: 100%; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .msc-postcards-stage, .msc-finale-stage {
+    flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    padding: 12px 4px 10px; text-align: center; position: relative;
+    /* мало содержимого — по центру, много — прокрутка сверху (safe) */
+    justify-content: safe center;
+  }
+  .msc-postcards-counter { margin: 0; font-weight: 800; color: var(--msc-gray-text); }
+  .msc-postcards-grid {
+    width: 100%;
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;
+  }
+  .msc-postcard {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 8px 8px 10px; border-radius: 14px;
+    background: #fff; border: 3px solid var(--msc-gold);
+    box-shadow: 0 4px 0 rgba(59,36,20,.15);
+    font: inherit; text-align: left; color: var(--msc-text);
+    transform: rotate(-1deg);
+  }
+  .msc-postcard:nth-child(even) { transform: rotate(1deg); }
+  button.msc-postcard { cursor: pointer; transition: transform .15s ease; }
+  button.msc-postcard:hover, button.msc-postcard:focus-visible { transform: rotate(0) scale(1.03); }
+  .msc-postcard__pic { position: relative; border-radius: 8px; overflow: hidden; aspect-ratio: 4 / 3; background: #eee; }
+  .msc-postcard__pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .msc-postcard.is-locked { border-color: #cfc4ad; background: #f4efe4; }
+  .msc-postcard.is-locked img { filter: grayscale(1) blur(2px) brightness(.9); opacity: .6; }
+  .msc-postcard__lock { position: absolute; inset: 0; display: grid; place-items: center; }
+  .msc-postcard__lock svg { width: 38px; height: 38px; }
+  .msc-postcard__title { font-weight: 900; font-size: var(--msc-fs-body-m); }
+  .msc-postcard__note { font-size: 12.5px; font-weight: 700; line-height: 1.25; color: var(--msc-gray-text); }
+  .msc-postcard.is-owned .msc-postcard__note { color: var(--msc-text); }
+  .msc-postcards-finale-btn { margin-top: 4px; }
+  .msc-postcard-big { margin: 0; width: 100%; background: #fff; padding: 10px 10px 14px; border-radius: 14px; border: 3px solid var(--msc-gold); box-shadow: var(--msc-shadow-float); }
+  .msc-postcard-big img { width: 100%; display: block; border-radius: 8px; }
+  .msc-postcard-big__title { margin-top: 10px; font-weight: 900; font-size: var(--msc-fs-title); color: var(--msc-text); }
+  .msc-postcard-big__caption { font-family: 'Caveat', cursive; font-weight: 700; font-size: 24px; color: #123A66; }
+
+  /* ============================== ФИНАЛ (раздел 3.11) ============================== */
+  .msc-finale-lead { margin: 0; font-weight: 800; color: var(--msc-text); line-height: 1.35; max-width: 420px; }
+  .msc-finale-stats { display: flex; gap: 10px; width: 100%; max-width: 420px; }
+  .msc-finale-stat {
+    flex: 1; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto;
+    column-gap: 8px; align-items: center; text-align: left;
+    padding: 8px 12px; border-radius: 14px;
+    background: var(--msc-panel-bottom); border: 3px solid var(--msc-gold);
+  }
+  .msc-finale-stat__icon { grid-row: 1 / 3; width: 30px; height: 30px; }
+  .msc-finale-stat__label { font-size: 12px; font-weight: 800; color: var(--msc-gray-text); }
+  .msc-finale-stat__value { font-size: var(--msc-fs-body-m); font-weight: 900; color: var(--msc-text); }
+  .msc-finale-postcards { display: flex; justify-content: center; gap: 6px; width: 100%; }
+  .msc-finale-postcards img {
+    width: 18%; max-width: 76px; aspect-ratio: 4 / 3; object-fit: cover;
+    border-radius: 6px; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.2);
+  }
+  .msc-finale-postcards img:nth-child(odd) { transform: rotate(-4deg); }
+  .msc-finale-postcards img:nth-child(even) { transform: rotate(3deg); }
+  .msc-finale-postcards img.is-locked { filter: grayscale(1); opacity: .45; }
+  .msc-finale-partners {
+    font-family: 'Caveat', cursive; font-weight: 700; line-height: 1.1;
+    font-size: clamp(18px, 5.6cqi, 26px); /* в одну строку и на узком телефоне */
+    text-wrap: balance;
+    color: #123A66; transform: rotate(-2deg);
+  }
+  .msc-finale-contacts {
+    width: 100%; max-width: 420px;
+    padding: 12px 16px; border-radius: 16px;
+    background: #fff; border: 3px dashed var(--msc-gold);
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  .msc-finale-contacts__title { font-weight: 800; color: var(--msc-gray-text); font-size: 13px; }
+  .msc-finale-contacts__company { font-weight: 900; font-size: var(--msc-fs-title); color: var(--msc-text); }
+  .msc-finale-contacts__row {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-weight: 900; font-size: var(--msc-fs-body-m); color: #123A66; text-decoration: none;
+  }
+  a.msc-finale-contacts__row:hover { text-decoration: underline; }
+  .msc-finale-contacts__icon { width: 24px; height: 24px; flex: none; }
+  .msc-finale-promo { display: flex; gap: 6px; align-items: baseline; font-weight: 800; color: var(--msc-text); }
+  .msc-finale-promo b { font-size: var(--msc-fs-title); letter-spacing: .08em; color: var(--msc-orange-edge, #C0561B); }
+  .msc-finale-stage .msc-dialog-actions { width: 100%; }
+
   /* ============================== МИНИ-ИГРЫ (раздел 3.6) — общий каркас:
      правила -> отсчёт -> HUD с паузой -> результат. Разметка и приёмы (single
      modal + перерисовка .stage) зеркалят .msc-quiz-*, только без вопросов. */
@@ -3198,6 +3306,7 @@ function defaultState() {
     postcards: {}, // { postcardId: true }
     purchasedExcursions: {}, // { excursionId: true }
     tutorialSeen: false,
+    finaleSeen: false, // финальный экран сам показывается один раз
     currentSceneId: 'cabin', // куда вернуть игрока по "Продолжить" (этап 2)
   };
 }
@@ -3938,6 +4047,14 @@ const ICONS = {
        <path d="M11 15v-4a5 5 0 0 1 10 0v4" fill="none" stroke="${STROKE}" stroke-width="2.2" stroke-linecap="round" />
        <circle cx="16" cy="20.5" r="2.2" fill="${STROKE}" />
        <rect x="15" y="21.5" width="2" height="3.5" fill="${STROKE}" />`,
+      [g.def],
+    );
+  },
+
+  phone: () => {
+    const g = grad('#8FE08A', '#3FA13A');
+    return wrap(
+      `<path d="M9.5 5.5l4 .5 1.5 5-2.5 2a13 13 0 0 0 6.5 6.5l2-2.5 5 1.5.5 4c-.3 1.6-1.7 2.8-3.4 2.7C13.6 24.6 7.4 18.4 6.8 8.9c-.1-1.7 1.1-3.1 2.7-3.4z" fill="url(#${g.id})" stroke="${STROKE}" stroke-width="2" stroke-linejoin="round" />`,
       [g.def],
     );
   },
@@ -6806,6 +6923,211 @@ function openMinigame({ container, game, pointsBadgeEl, onPointsChanged, onFinis
   return { openMinigame };
 })();
 
+__mod["ui/postcardsScreen.js"] = (function () {
+const { createPanel, createRibbon, createButton, createModal, createCloseButton } = __mod["ui/components.js"];
+const { icon } = __mod["ui/icons.js"];
+const { POSTCARDS } = __mod["data/postcards.js"];
+const { Storage } = __mod["engine/storage.js"];
+const { Sound } = __mod["engine/sound.js"];
+// Альбом открыток (кнопка «Открытки» в HUD, раздел 3.9). Сетка из пяти
+// открыток: полученные — цветные, с подписью, по тапу открываются крупно;
+// неполученные — серые под замком, с подсказкой, где их взять.
+
+
+
+
+
+
+
+function el(tag, className, attrs = {}) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'text') node.textContent = v;
+    else if (k === 'html') node.innerHTML = v;
+    else node.setAttribute(k, v);
+  }
+  return node;
+}
+
+/**
+ * @param {{container:HTMLElement, onFinale?:Function, onClose?:Function}} opts
+ *   onFinale — показать кнопку «Итоги путешествия», когда собраны все открытки.
+ */
+function openPostcards({ container, onFinale, onClose }) {
+  const { el: panel, body } = createPanel({ className: 'msc-postcards-panel' });
+  const stage = el('div', 'msc-postcards-stage');
+  body.appendChild(stage);
+  panel.appendChild(createCloseButton({ onClick: () => modal.close() }));
+  const modal = createModal({ bodyEl: panel, container, full: true, onRequestClose: () => modal.close(), onClose });
+
+  function renderGrid() {
+    stage.innerHTML = '';
+    const owned = Storage.get().postcards;
+    const count = POSTCARDS.filter((p) => owned[p.id]).length;
+    stage.appendChild(createRibbon('Открытки'));
+    stage.appendChild(el('p', 'msc-postcards-counter', { text: `Собрано ${count} из ${POSTCARDS.length}` }));
+
+    const grid = el('div', 'msc-postcards-grid');
+    for (const p of POSTCARDS) {
+      const has = !!owned[p.id];
+      const card = el(has ? 'button' : 'div', `msc-postcard ${has ? 'is-owned' : 'is-locked'}`, has ? { type: 'button', 'aria-label': `Открыть открытку «${p.title}»` } : {});
+      const pic = el('div', 'msc-postcard__pic');
+      pic.appendChild(el('img', null, { src: p.image, alt: '', loading: 'lazy' }));
+      if (!has) pic.appendChild(el('span', 'msc-postcard__lock', { html: icon('lock') }));
+      card.appendChild(pic);
+      card.appendChild(el('div', 'msc-postcard__title', { text: p.title }));
+      card.appendChild(el('div', 'msc-postcard__note', { text: has ? p.caption : p.hint }));
+      if (has) card.addEventListener('click', () => { Sound.click(); renderOne(p); });
+      grid.appendChild(card);
+    }
+    stage.appendChild(grid);
+
+    if (count === POSTCARDS.length && onFinale) {
+      const btn = createButton({ label: 'Итоги путешествия', variant: 'orange', size: 'l' });
+      btn.button.addEventListener('click', () => { modal.close(); onFinale(); });
+      btn.el.classList.add('msc-postcards-finale-btn');
+      stage.appendChild(btn.el);
+    }
+  }
+
+  function renderOne(p) {
+    stage.innerHTML = '';
+    const big = el('figure', 'msc-postcard-big');
+    big.appendChild(el('img', null, { src: p.image, alt: p.caption }));
+    const cap = el('figcaption');
+    cap.appendChild(el('div', 'msc-postcard-big__title', { text: p.title }));
+    cap.appendChild(el('div', 'msc-postcard-big__caption', { text: p.caption }));
+    big.appendChild(cap);
+    stage.appendChild(big);
+    const back = createButton({ label: 'Все открытки', variant: 'blue' });
+    back.button.addEventListener('click', () => { Sound.click(); renderGrid(); });
+    stage.appendChild(back.el);
+    back.button.focus();
+  }
+
+  modal.open();
+  renderGrid();
+}
+
+  return { openPostcards };
+})();
+
+__mod["ui/finaleScreen.js"] = (function () {
+const { createPanel, createRibbon, createButton, createModal, spawnConfetti } = __mod["ui/components.js"];
+const { icon } = __mod["ui/icons.js"];
+const { CONFIG } = __mod["data/config.js"];
+const { STRINGS } = __mod["data/strings.ru.js"];
+const { POSTCARDS } = __mod["data/postcards.js"];
+const { Storage } = __mod["engine/storage.js"];
+const { Sound } = __mod["engine/sound.js"];
+// Финальный экран (раздел 3.11): показывается один раз, когда пройдены все
+// задания (викторины + мини-игры); повторно — из альбома открыток кнопкой
+// «Итоги путешествия». Звание по баллам, собранные открытки, компании и
+// контакты агентства. Пустые поля контактов (CONFIG.contacts) не показываются.
+
+
+
+
+
+
+
+
+
+function el(tag, className, attrs = {}) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'text') node.textContent = v;
+    else if (k === 'html') node.innerHTML = v;
+    else node.setAttribute(k, v);
+  }
+  return node;
+}
+
+function rankFor(points) {
+  let title = CONFIG.ranks[0].title;
+  for (const r of CONFIG.ranks) if (points >= r.minScore) title = r.title;
+  return title;
+}
+
+/** @param {{container:HTMLElement, onPostcards?:Function, onClose?:Function}} opts */
+function openFinale({ container, onPostcards, onClose }) {
+  const s = Storage.get();
+  const { el: panel, body } = createPanel({ className: 'msc-finale-panel' });
+  const stage = el('div', 'msc-finale-stage');
+  body.appendChild(stage);
+  const modal = createModal({ bodyEl: panel, container, full: true, onClose });
+
+  stage.appendChild(createRibbon('Круиз завершён!'));
+  stage.appendChild(el('p', 'msc-finale-lead', { text: 'Вы прошли все задания путешествия. Спасибо, что были с нами!' }));
+
+  const stats = el('div', 'msc-finale-stats');
+  const rank = el('div', 'msc-finale-stat');
+  rank.appendChild(el('span', 'msc-finale-stat__icon', { html: icon('star') }));
+  rank.appendChild(el('span', 'msc-finale-stat__label', { text: 'Звание' }));
+  rank.appendChild(el('span', 'msc-finale-stat__value', { text: rankFor(s.points) }));
+  const pts = el('div', 'msc-finale-stat');
+  pts.appendChild(el('span', 'msc-finale-stat__icon', { html: icon('coin') }));
+  pts.appendChild(el('span', 'msc-finale-stat__label', { text: 'Баллы' }));
+  pts.appendChild(el('span', 'msc-finale-stat__value', { text: String(s.points) }));
+  stats.appendChild(rank);
+  stats.appendChild(pts);
+  stage.appendChild(stats);
+
+  const strip = el('div', 'msc-finale-postcards', { 'aria-label': 'Собранные открытки' });
+  for (const p of POSTCARDS) {
+    const img = el('img', s.postcards[p.id] ? '' : 'is-locked', { src: p.image, alt: p.title, title: p.title });
+    strip.appendChild(img);
+  }
+  stage.appendChild(strip);
+
+  // Компании — тем же «маркером», что и на заставке
+  stage.appendChild(el('div', 'msc-finale-partners', { text: STRINGS.title.partners }));
+
+  const c = CONFIG.contacts;
+  const rows = [
+    c.phone && { icon: 'phone', text: c.phone, href: `tel:${c.phone.replace(/[^\d+]/g, '')}` },
+    c.site && { icon: 'map', text: c.site, href: /^https?:/.test(c.site) ? c.site : `https://${c.site}` },
+    c.social && { icon: 'postcard', text: c.social },
+  ].filter(Boolean);
+  if (c.company || rows.length) {
+    const box = el('div', 'msc-finale-contacts');
+    box.appendChild(el('div', 'msc-finale-contacts__title', { text: 'Хотите в настоящий круиз?' }));
+    if (c.company) box.appendChild(el('div', 'msc-finale-contacts__company', { text: c.company }));
+    for (const r of rows) {
+      const line = el(r.href ? 'a' : 'div', 'msc-finale-contacts__row', r.href ? { href: r.href, ...(r.href.startsWith('http') ? { target: '_blank', rel: 'noopener' } : {}) } : {});
+      line.appendChild(el('span', 'msc-finale-contacts__icon', { html: icon(r.icon) }));
+      line.appendChild(el('span', null, { text: r.text }));
+      box.appendChild(line);
+    }
+    if (c.promoCode) {
+      const promo = el('div', 'msc-finale-promo');
+      promo.appendChild(el('span', null, { text: 'Промокод:' }));
+      promo.appendChild(el('b', null, { text: c.promoCode }));
+      box.appendChild(promo);
+    }
+    stage.appendChild(box);
+  }
+
+  const actions = el('div', 'msc-dialog-actions');
+  const cards = createButton({ label: 'Открытки', variant: 'blue', size: 'l' });
+  const cont = createButton({ label: 'Продолжить', variant: 'green', size: 'l' });
+  cards.button.addEventListener('click', () => { modal.close(); onPostcards?.(); });
+  cont.button.addEventListener('click', () => modal.close());
+  actions.appendChild(cards.el);
+  actions.appendChild(cont.el);
+  stage.appendChild(actions);
+
+  modal.open();
+  Sound.points();
+  spawnConfetti(stage, { count: 30 });
+  cont.button.focus();
+}
+
+  return { rankFor, openFinale };
+})();
+
 __mod["engine/illustratedBootstrap.js"] = (function () {
 const { IllustratedScene } = __mod["engine/illustratedScene.js"];
 const { Input } = __mod["engine/input.js"];
@@ -6821,6 +7143,8 @@ const { createOnboarding } = __mod["ui/onboarding.js"];
 const { openMenu } = __mod["ui/menu.js"];
 const { openQuiz } = __mod["ui/quizScreen.js"];
 const { openMinigame } = __mod["ui/minigameScreen.js"];
+const { openPostcards } = __mod["ui/postcardsScreen.js"];
+const { openFinale } = __mod["ui/finaleScreen.js"];
 const { createToastLayer, createPanel, createButton, createModal } = __mod["ui/components.js"];
 const { QUIZZES } = __mod["data/quizzes.js"];
 const { MINIGAMES } = __mod["data/minigames.js"];
@@ -6831,6 +7155,8 @@ const { MINIGAMES } = __mod["data/minigames.js"];
 //   runIllustratedTest() — одна сцена без титула/HUD, только мир + DOM-окна
 //                          "Да/Нет"/факт — используется для QA разметки
 //                          конкретной локации (?scene=rome и т.п.).
+
+
 
 
 
@@ -7049,6 +7375,24 @@ async function runGame() {
     return Math.min(100, (done / CONFIG.illustrated.totalActivities) * 100);
   }
 
+  // Модальные экраны поверх сцены: мир на паузе, HUD приглушён.
+  function withPausedWorld(open) {
+    if (scene) scene.blocked = true;
+    hud?.setDimmed(true);
+    open(() => { if (scene) scene.blocked = false; hud?.setDimmed(false); });
+  }
+  function showPostcards() {
+    withPausedWorld((resume) => openPostcards({ container: uiLayer, onFinale: showFinale, onClose: resume }));
+  }
+  function showFinale() {
+    Storage.set({ finaleSeen: true });
+    withPausedWorld((resume) => openFinale({ container: uiLayer, onPostcards: showPostcards, onClose: resume }));
+  }
+  /** После каждого задания: все пройдены и финал ещё не показывали — показать. */
+  function maybeShowFinale() {
+    if (computeProgress() >= 100 && !Storage.get().finaleSeen) showFinale();
+  }
+
   const gameApi = {
     isHotspotCompleted(id) {
       const s = Storage.get();
@@ -7074,7 +7418,7 @@ async function runGame() {
           postcardId: mapping.postcardId,
           pointsBadgeEl: hud?.pointsBadge,
           onPointsChanged: (n) => { hud?.setPoints(n); hud?.setProgress(computeProgress()); },
-          onFinish: () => { scene.blocked = false; hud?.setDimmed(false); },
+          onFinish: () => { scene.blocked = false; hud?.setDimmed(false); maybeShowFinale(); },
         });
         return;
       }
@@ -7091,7 +7435,7 @@ async function runGame() {
           game,
           pointsBadgeEl: hud?.pointsBadge,
           onPointsChanged: (n) => { hud?.setPoints(n); hud?.setProgress(computeProgress()); },
-          onFinish: () => { scene.blocked = false; hud?.setDimmed(false); },
+          onFinish: () => { scene.blocked = false; hud?.setDimmed(false); maybeShowFinale(); },
         });
       }
     },
@@ -7160,7 +7504,7 @@ async function runGame() {
       progressPercent: computeProgress(),
       muted: Sound.isMuted(),
       onOpenMap: () => toastLayer.show('Карта появится в следующем шаге', { iconName: 'map' }),
-      onOpenPostcards: () => toastLayer.show('Открытки появятся в следующем шаге', { iconName: 'postcard' }),
+      onOpenPostcards: () => showPostcards(),
       onOpenShop: () => toastLayer.show('Магазин появится в следующем шаге', { iconName: 'shop' }),
       onToggleSound: () => { Sound.unlock(); Sound.toggleMute(); hud.setMuted(Sound.isMuted()); },
       onOpenMenu: () => {

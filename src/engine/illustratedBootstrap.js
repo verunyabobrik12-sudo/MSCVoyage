@@ -20,6 +20,8 @@ import { createOnboarding } from '../ui/onboarding.js';
 import { openMenu } from '../ui/menu.js';
 import { openQuiz } from '../ui/quizScreen.js';
 import { openMinigame } from '../ui/minigameScreen.js';
+import { openPostcards } from '../ui/postcardsScreen.js';
+import { openFinale } from '../ui/finaleScreen.js';
 import { createToastLayer, createPanel, createButton, createModal } from '../ui/components.js';
 import { QUIZZES } from '../data/quizzes.js';
 import { MINIGAMES } from '../data/minigames.js';
@@ -223,6 +225,24 @@ export async function runGame() {
     return Math.min(100, (done / CONFIG.illustrated.totalActivities) * 100);
   }
 
+  // Модальные экраны поверх сцены: мир на паузе, HUD приглушён.
+  function withPausedWorld(open) {
+    if (scene) scene.blocked = true;
+    hud?.setDimmed(true);
+    open(() => { if (scene) scene.blocked = false; hud?.setDimmed(false); });
+  }
+  function showPostcards() {
+    withPausedWorld((resume) => openPostcards({ container: uiLayer, onFinale: showFinale, onClose: resume }));
+  }
+  function showFinale() {
+    Storage.set({ finaleSeen: true });
+    withPausedWorld((resume) => openFinale({ container: uiLayer, onPostcards: showPostcards, onClose: resume }));
+  }
+  /** После каждого задания: все пройдены и финал ещё не показывали — показать. */
+  function maybeShowFinale() {
+    if (computeProgress() >= 100 && !Storage.get().finaleSeen) showFinale();
+  }
+
   const gameApi = {
     isHotspotCompleted(id) {
       const s = Storage.get();
@@ -248,7 +268,7 @@ export async function runGame() {
           postcardId: mapping.postcardId,
           pointsBadgeEl: hud?.pointsBadge,
           onPointsChanged: (n) => { hud?.setPoints(n); hud?.setProgress(computeProgress()); },
-          onFinish: () => { scene.blocked = false; hud?.setDimmed(false); },
+          onFinish: () => { scene.blocked = false; hud?.setDimmed(false); maybeShowFinale(); },
         });
         return;
       }
@@ -265,7 +285,7 @@ export async function runGame() {
           game,
           pointsBadgeEl: hud?.pointsBadge,
           onPointsChanged: (n) => { hud?.setPoints(n); hud?.setProgress(computeProgress()); },
-          onFinish: () => { scene.blocked = false; hud?.setDimmed(false); },
+          onFinish: () => { scene.blocked = false; hud?.setDimmed(false); maybeShowFinale(); },
         });
       }
     },
@@ -334,7 +354,7 @@ export async function runGame() {
       progressPercent: computeProgress(),
       muted: Sound.isMuted(),
       onOpenMap: () => toastLayer.show('Карта появится в следующем шаге', { iconName: 'map' }),
-      onOpenPostcards: () => toastLayer.show('Открытки появятся в следующем шаге', { iconName: 'postcard' }),
+      onOpenPostcards: () => showPostcards(),
       onOpenShop: () => toastLayer.show('Магазин появится в следующем шаге', { iconName: 'shop' }),
       onToggleSound: () => { Sound.unlock(); Sound.toggleMute(); hud.setMuted(Sound.isMuted()); },
       onOpenMenu: () => {

@@ -1031,6 +1031,93 @@ const DESIGN_TOKENS_CSS = `
     .msc-quiz-question__text { font-size: var(--msc-fs-body-m); }
   }
 
+  /* ============================== ОТКРЫТКИ (раздел 3.9) ============================== */
+  .msc-postcards-panel, .msc-finale-panel { width: min(560px, 100%); height: 100%; }
+  .msc-postcards-panel .msc-panel__body, .msc-finale-panel .msc-panel__body {
+    height: 100%; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .msc-postcards-stage, .msc-finale-stage {
+    flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    padding: 12px 4px 10px; text-align: center; position: relative;
+    /* мало содержимого — по центру, много — прокрутка сверху (safe) */
+    justify-content: safe center;
+  }
+  .msc-postcards-counter { margin: 0; font-weight: 800; color: var(--msc-gray-text); }
+  .msc-postcards-grid {
+    width: 100%;
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;
+  }
+  .msc-postcard {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 8px 8px 10px; border-radius: 14px;
+    background: #fff; border: 3px solid var(--msc-gold);
+    box-shadow: 0 4px 0 rgba(59,36,20,.15);
+    font: inherit; text-align: left; color: var(--msc-text);
+    transform: rotate(-1deg);
+  }
+  .msc-postcard:nth-child(even) { transform: rotate(1deg); }
+  button.msc-postcard { cursor: pointer; transition: transform .15s ease; }
+  button.msc-postcard:hover, button.msc-postcard:focus-visible { transform: rotate(0) scale(1.03); }
+  .msc-postcard__pic { position: relative; border-radius: 8px; overflow: hidden; aspect-ratio: 4 / 3; background: #eee; }
+  .msc-postcard__pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .msc-postcard.is-locked { border-color: #cfc4ad; background: #f4efe4; }
+  .msc-postcard.is-locked img { filter: grayscale(1) blur(2px) brightness(.9); opacity: .6; }
+  .msc-postcard__lock { position: absolute; inset: 0; display: grid; place-items: center; }
+  .msc-postcard__lock svg { width: 38px; height: 38px; }
+  .msc-postcard__title { font-weight: 900; font-size: var(--msc-fs-body-m); }
+  .msc-postcard__note { font-size: 12.5px; font-weight: 700; line-height: 1.25; color: var(--msc-gray-text); }
+  .msc-postcard.is-owned .msc-postcard__note { color: var(--msc-text); }
+  .msc-postcards-finale-btn { margin-top: 4px; }
+  .msc-postcard-big { margin: 0; width: 100%; background: #fff; padding: 10px 10px 14px; border-radius: 14px; border: 3px solid var(--msc-gold); box-shadow: var(--msc-shadow-float); }
+  .msc-postcard-big img { width: 100%; display: block; border-radius: 8px; }
+  .msc-postcard-big__title { margin-top: 10px; font-weight: 900; font-size: var(--msc-fs-title); color: var(--msc-text); }
+  .msc-postcard-big__caption { font-family: 'Caveat', cursive; font-weight: 700; font-size: 24px; color: #123A66; }
+
+  /* ============================== ФИНАЛ (раздел 3.11) ============================== */
+  .msc-finale-lead { margin: 0; font-weight: 800; color: var(--msc-text); line-height: 1.35; max-width: 420px; }
+  .msc-finale-stats { display: flex; gap: 10px; width: 100%; max-width: 420px; }
+  .msc-finale-stat {
+    flex: 1; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto;
+    column-gap: 8px; align-items: center; text-align: left;
+    padding: 8px 12px; border-radius: 14px;
+    background: var(--msc-panel-bottom); border: 3px solid var(--msc-gold);
+  }
+  .msc-finale-stat__icon { grid-row: 1 / 3; width: 30px; height: 30px; }
+  .msc-finale-stat__label { font-size: 12px; font-weight: 800; color: var(--msc-gray-text); }
+  .msc-finale-stat__value { font-size: var(--msc-fs-body-m); font-weight: 900; color: var(--msc-text); }
+  .msc-finale-postcards { display: flex; justify-content: center; gap: 6px; width: 100%; }
+  .msc-finale-postcards img {
+    width: 18%; max-width: 76px; aspect-ratio: 4 / 3; object-fit: cover;
+    border-radius: 6px; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.2);
+  }
+  .msc-finale-postcards img:nth-child(odd) { transform: rotate(-4deg); }
+  .msc-finale-postcards img:nth-child(even) { transform: rotate(3deg); }
+  .msc-finale-postcards img.is-locked { filter: grayscale(1); opacity: .45; }
+  .msc-finale-partners {
+    font-family: 'Caveat', cursive; font-weight: 700; line-height: 1.1;
+    font-size: clamp(18px, 5.6cqi, 26px); /* в одну строку и на узком телефоне */
+    text-wrap: balance;
+    color: #123A66; transform: rotate(-2deg);
+  }
+  .msc-finale-contacts {
+    width: 100%; max-width: 420px;
+    padding: 12px 16px; border-radius: 16px;
+    background: #fff; border: 3px dashed var(--msc-gold);
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  .msc-finale-contacts__title { font-weight: 800; color: var(--msc-gray-text); font-size: 13px; }
+  .msc-finale-contacts__company { font-weight: 900; font-size: var(--msc-fs-title); color: var(--msc-text); }
+  .msc-finale-contacts__row {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-weight: 900; font-size: var(--msc-fs-body-m); color: #123A66; text-decoration: none;
+  }
+  a.msc-finale-contacts__row:hover { text-decoration: underline; }
+  .msc-finale-contacts__icon { width: 24px; height: 24px; flex: none; }
+  .msc-finale-promo { display: flex; gap: 6px; align-items: baseline; font-weight: 800; color: var(--msc-text); }
+  .msc-finale-promo b { font-size: var(--msc-fs-title); letter-spacing: .08em; color: var(--msc-orange-edge, #C0561B); }
+  .msc-finale-stage .msc-dialog-actions { width: 100%; }
+
   /* ============================== МИНИ-ИГРЫ (раздел 3.6) — общий каркас:
      правила -> отсчёт -> HUD с паузой -> результат. Разметка и приёмы (single
      modal + перерисовка .stage) зеркалят .msc-quiz-*, только без вопросов. */

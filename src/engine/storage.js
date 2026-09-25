@@ -12,6 +12,7 @@ function defaultState() {
     postcards: {}, // { postcardId: true }
     purchasedExcursions: {}, // { excursionId: true }
     tutorialSeen: false,
+    finaleSeen: false, // финальный экран сам показывается один раз
     currentSceneId: 'cabin', // куда вернуть игрока по "Продолжить" (этап 2)
   };
 }

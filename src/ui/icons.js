@@ -67,6 +67,14 @@ const ICONS = {
     );
   },
 
+  phone: () => {
+    const g = grad('#8FE08A', '#3FA13A');
+    return wrap(
+      `<path d="M9.5 5.5l4 .5 1.5 5-2.5 2a13 13 0 0 0 6.5 6.5l2-2.5 5 1.5.5 4c-.3 1.6-1.7 2.8-3.4 2.7C13.6 24.6 7.4 18.4 6.8 8.9c-.1-1.7 1.1-3.1 2.7-3.4z" fill="url(#${g.id})" stroke="${STROKE}" stroke-width="2" stroke-linejoin="round" />`,
+      [g.def],
+    );
+  },
+
   check: () => {
     const g = grad('#9CF08A', TOKENS.greenDark);
     return wrap(

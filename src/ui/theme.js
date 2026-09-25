@@ -40,6 +40,14 @@ export function loadThemeFont() {
       font-weight: 200 900;
       font-display: swap;
     }
+    /* Caveat (OFL, assets/fonts/Caveat-OFL.txt) — рукописный «маркер» с
+       кириллицей, только для строки компаний на заставке */
+    @font-face {
+      font-family: 'Caveat';
+      src: url('assets/fonts/Caveat.ttf') format('truetype');
+      font-weight: 400 700;
+      font-display: swap;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -846,15 +854,15 @@ const DESIGN_TOKENS_CSS = `
     text-transform: uppercase;
     backdrop-filter: blur(2px);
   }
-  /* компании-партнёры — под подзаголовком, тише названия */
+  /* компании — «от руки тёмно-синим маркером», без обводки (её просьба) */
   .msc-logo__partners {
-    margin-top: .7em;
-    color: #fff;
-    font-weight: 800;
-    font-size: clamp(12px, 3.6cqi, 16px);
-    letter-spacing: .04em;
-    -webkit-text-stroke: .2em var(--logo-navy);
-    paint-order: stroke fill;
+    margin-top: .35em;
+    font-family: 'Caveat', 'Segoe Print', cursive;
+    font-weight: 700;
+    font-size: clamp(20px, 6.2cqi, 28px);
+    line-height: 1.1;
+    color: var(--logo-navy);
+    transform: rotate(-2deg);
   }
   .msc-title-buttons {
     margin-top: auto;

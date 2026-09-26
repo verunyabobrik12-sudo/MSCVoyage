@@ -29,7 +29,7 @@ const TRAPS = ['trap_urchin', 'trap_drop'];
 const TARGET_SCORE = 260;
 
 // Кривые сложности по доле прошедшего раунда p = 0..1.
-const GRAVITY = [0.62, 0.95]; // доля высоты поля / с² (было 1.1-1.6 — «мяч падает быстро»)
+const GRAVITY = [0.8, 1.2]; // доля высоты поля / с² (было 1.1-1.6 — «мяч падает быстро»)
 const ITEM_INTERVAL = [3.2, 1.6]; // сек между бонусами/ловушками
 const TRAP_CHANCE = [0.3, 0.5];
 const ITEM_FALL = [0.14, 0.22]; // доля высоты / с
@@ -93,14 +93,16 @@ export function createBallGame({ host, onScore, onLives, onGameOver, lives }) {
     return { s, offX: (size.w - BG_W * s) / 2, offY: size.h - BG_H * s };
   }
   function mat() {
-    const w = Math.min(size.w * 0.38, 180);
+    // от меньшей стороны поля: в почти квадратном окне десктопа по ширине
+    // матрас выходил огромным и мяч было не упустить (её отзыв 2026-09-26)
+    const w = Math.min(size.w * 0.26, size.h * 0.22, 130);
     const h = w * 0.25;
     const g = bgGeom();
     const surface = g.offY + BG_WATER * g.s; // линия воды
     const bob = Math.sin(state.t * 2.2) * 2; // покачивание на воде
     return { w, h, cx: state.matX * size.w, top: surface - h * 0.55 + bob, surface };
   }
-  function ballR() { return Math.max(20, Math.min(size.w * 0.085, 40)); }
+  function ballR() { return Math.max(13, Math.min(size.w * 0.05, size.h * 0.042, 24)); }
   function gravity() { return lerp(GRAVITY[0], GRAVITY[1], state.progress) * size.h; }
   /** Скорость отскока: мяч взлетает примерно на 3/4 высоты над матрасом. */
   function launchSpeed(m) { return Math.sqrt(2 * gravity() * (m.top - ballR()) * lerp(0.7, 0.82, Math.random())); }

@@ -751,10 +751,10 @@ const MINIGAMES = {
     id: 'ballMinigame',
     title: 'Не урони мяч',
     doIcon: 'check',
-    doText: 'Отбивайте мяч ракеткой, ловите звёзды и монеты',
+    doText: 'Отбивайте мяч надувным матрасом, ловите звёзды и монеты',
     avoidIcon: 'exclaim',
     avoidText: 'Не роняйте мяч в воду, уворачивайтесь от ежей и капель',
-    rules: 'Двигайте ракетку по бортику и не давайте мячу упасть в бассейн. Сердце возвращает жизнь.',
+    rules: 'Двигайте матрас по воде и не давайте мячу упасть в бассейн. Куда мяч попал на матрасе — туда и отлетит. Сердце возвращает жизнь.',
     lives: 3,
     durationSec: 45,
     postcardId: 'pool',
@@ -5979,16 +5979,21 @@ const { loadImage, cleanSprite, createFieldCanvas, createHorizontalControl } = _
 // Геймплей мини-игры «Не урони мяч» (Бассейн). Canvas-поле внутри каркаса
 // src/ui/minigameScreen.js: каркас ведёт таймер, паузу, HUD и результат.
 //
-// Ракетка ездит по бортику бассейна, мяч летает под «гравитацией» и
-// отскакивает от круглой головы ракетки — угол зависит от точки удара.
-// Упал в воду — брызги и минус жизнь, мяч появляется сверху заново.
-// Сверху медленно падают бонусы (ловить ракеткой) и ловушки (уворачиваться).
-// Не используются: extra_ball_alt1/2, extra_chest_locked, extra_trap_urchin_dup
-// (запасные варианты с листа), trap_splash — только как эффект брызг.
+// По воде бассейна плавает надувной матрас (рисуется кодом), игрок двигает
+// его влево-вправо. Пляжный мяч отскакивает от матраса как в арканоиде:
+// куда попал — туда и полетит (ближе к краю — сильнее вбок). Упал в воду —
+// брызги и минус жизнь, мяч появляется сверху заново. Сверху медленно падают
+// бонусы (ловить матрасом) и ловушки (уворачиваться).
+//
+// 2026-09-26, по её отзыву: вертикальная ракетка (paddle.png) давала крошечную
+// площадь удара, мяч падал слишком быстро — заменено на широкий горизонтальный
+// матрас, мяч крупнее, «гравитация» слабее. Не используются: paddle,
+// extra_ball_alt1/2, extra_chest_locked, extra_trap_urchin_dup; trap_splash —
+// только как эффект брызг.
 
 
 
-const SPRITES = ['ball_main', 'paddle', 'bonus_star', 'bonus_coin', 'bonus_heart', 'trap_drop', 'trap_urchin', 'trap_splash'];
+const SPRITES = ['ball_main', 'bonus_star', 'bonus_coin', 'bonus_heart', 'trap_drop', 'trap_urchin', 'trap_splash'];
 
 const POINTS_PER_HIT = 10;
 const BONUS = {
@@ -5997,19 +6002,20 @@ const BONUS = {
   bonus_heart: { life: 1, pointsIfFull: 20 },
 };
 const TRAPS = ['trap_urchin', 'trap_drop'];
-// Очков для «100%»: ~25 отбитых мячей + немного бонусов за 45 с.
-const TARGET_SCORE = 320;
+// Очков для «100%»: бот с идеальным слежением за 45 с набирает ~300-330
+// (мяч медленный, ~22 отскока) — человеку оставлен запас.
+const TARGET_SCORE = 260;
 
 // Кривые сложности по доле прошедшего раунда p = 0..1.
-const GRAVITY = [1.1, 1.6]; // доля высоты поля / с²
+const GRAVITY = [0.62, 0.95]; // доля высоты поля / с² (было 1.1-1.6 — «мяч падает быстро»)
 const ITEM_INTERVAL = [3.2, 1.6]; // сек между бонусами/ловушками
-const TRAP_CHANCE = [0.35, 0.55];
-const ITEM_FALL = [0.16, 0.26]; // доля высоты / с
+const TRAP_CHANCE = [0.3, 0.5];
+const ITEM_FALL = [0.14, 0.22]; // доля высоты / с
+const MAX_BOUNCE_ANGLE = (55 * Math.PI) / 180; // удар краем матраса
 
-// Фон 848x1264: верх бортика бассейна и линия воды (в пикселях исходника).
+// Фон 848x1264: линия воды в бассейне (в пикселях исходника).
 const BG_W = 848;
 const BG_H = 1264;
-const BG_POOL_LIP = 745;
 const BG_WATER = 800;
 
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -6047,12 +6053,13 @@ function createBallGame({ host, onScore, onLives, onGameOver, lives }) {
     score: 0,
     hits: 0,
     progress: 0,
-    paddleX: 0.5, // доля ширины
-    paddleVx: 0, // px/с — «подкручивает» отскок
+    t: 0,
+    matX: 0.5, // центр матраса, доля ширины
+    matVx: 0, // px/с — чуть «подкручивает» отскок
     ball: null, // { x, y, vx, vy, spin } в px; null — ждём появления
     respawnT: 0.6,
     items: [],
-    itemTimer: 2.2,
+    itemTimer: 2.4,
     effects: [], // брызги, всплывающие очки
     hurtT: 0,
     over: false,
@@ -6063,23 +6070,24 @@ function createBallGame({ host, onScore, onLives, onGameOver, lives }) {
     const s = Math.max(size.w / BG_W, size.h / BG_H);
     return { s, offX: (size.w - BG_W * s) / 2, offY: size.h - BG_H * s };
   }
-  function paddleGeom() {
-    const pw = Math.min(size.w * 0.24, 110);
-    const k = pw / 157; // исходный спрайт ракетки 157x245, голова — круг ~r76 с центром на y≈80
+  function mat() {
+    const w = Math.min(size.w * 0.38, 180);
+    const h = w * 0.25;
     const g = bgGeom();
-    const headR = 72 * k;
-    const headY = g.offY + BG_POOL_LIP * g.s - headR * 0.9; // голова над бортиком
-    return { pw, k, headR, headY, cx: state.paddleX * size.w };
+    const surface = g.offY + BG_WATER * g.s; // линия воды
+    const bob = Math.sin(state.t * 2.2) * 2; // покачивание на воде
+    return { w, h, cx: state.matX * size.w, top: surface - h * 0.55 + bob, surface };
   }
-  function waterY() { const g = bgGeom(); return g.offY + BG_WATER * g.s; }
-  function ballR() { return paddleGeom().headR * 0.62; }
+  function ballR() { return Math.max(20, Math.min(size.w * 0.085, 40)); }
   function gravity() { return lerp(GRAVITY[0], GRAVITY[1], state.progress) * size.h; }
+  /** Скорость отскока: мяч взлетает примерно на 3/4 высоты над матрасом. */
+  function launchSpeed(m) { return Math.sqrt(2 * gravity() * (m.top - ballR()) * lerp(0.7, 0.82, Math.random())); }
 
   function spawnBall() {
     state.ball = {
       x: lerp(0.3, 0.7, Math.random()) * size.w,
-      y: size.h * 0.12,
-      vx: (Math.random() - 0.5) * size.w * 0.2,
+      y: size.h * 0.1,
+      vx: (Math.random() - 0.5) * size.w * 0.15,
       vy: 0,
       spin: 0,
     };
@@ -6093,7 +6101,7 @@ function createBallGame({ host, onScore, onLives, onGameOver, lives }) {
       const r = Math.random();
       name = r < 0.45 ? 'bonus_star' : r < 0.85 ? 'bonus_coin' : 'bonus_heart';
     }
-    const r = paddleGeom().headR * 0.55;
+    const r = mat().w * 0.13;
     state.items.push({
       name, trap, r,
       x: lerp(r, size.w - r, Math.random()),
@@ -6117,13 +6125,14 @@ function createBallGame({ host, onScore, onLives, onGameOver, lives }) {
   function update(dt, progress) {
     if (!assets || state.over) return;
     state.progress = Math.min(1, Math.max(0, progress));
+    state.t += dt;
 
-    const pg0 = paddleGeom();
-    const prevX = state.paddleX;
-    const edge = (pg0.pw / 2 + 2) / size.w;
-    state.paddleX = Math.min(1 - edge, Math.max(edge, control.step(state.paddleX, dt, 1.8)));
-    state.paddleVx = ((state.paddleX - prevX) * size.w) / Math.max(dt, 1e-3);
-    const pg = paddleGeom();
+    const m0 = mat();
+    const prevX = state.matX;
+    const edge = (m0.w / 2 + 2) / size.w;
+    state.matX = Math.min(1 - edge, Math.max(edge, control.step(state.matX, dt, 1.8)));
+    state.matVx = ((state.matX - prevX) * size.w) / Math.max(dt, 1e-3);
+    const m = mat();
 
     // мяч
     if (!state.ball) {
@@ -6132,6 +6141,7 @@ function createBallGame({ host, onScore, onLives, onGameOver, lives }) {
     } else {
       const b = state.ball;
       const br = ballR();
+      const prevBottom = b.y + br;
       b.vy += gravity() * dt;
       b.x += b.vx * dt;
       b.y += b.vy * dt;
@@ -6140,38 +6150,34 @@ function createBallGame({ host, onScore, onLives, onGameOver, lives }) {
       if (b.x > size.w - br) { b.x = size.w - br; b.vx = -Math.abs(b.vx); }
       if (b.y < br) { b.y = br; b.vy = Math.abs(b.vy) * 0.6; }
 
-      // удар о голову ракетки (круг-круг), только если мяч летит к ней
-      const dx = b.x - pg.cx;
-      const dy = b.y - pg.headY;
-      const dist = Math.hypot(dx, dy);
-      if (dist < br + pg.headR && dist > 0) {
-        const nx = dx / dist;
-        const ny = dy / dist;
-        if (b.vx * nx + b.vy * ny < 0) {
-          const g = gravity();
-          const launch = Math.sqrt(2 * g * size.h * lerp(0.5, 0.62, Math.random()));
-          b.vy = -launch * Math.max(0.55, -ny); // удар сбоку — ниже и сильнее вбок
-          b.vx = nx * launch * 0.75 + state.paddleVx * 0.25;
-          const maxVx = size.w * 1.3;
-          b.vx = Math.max(-maxVx, Math.min(maxVx, b.vx));
-          b.x = pg.cx + nx * (br + pg.headR + 1);
-          b.y = pg.headY + ny * (br + pg.headR + 1);
-          state.hits += 1;
-          state.score += POINTS_PER_HIT;
-          onScore?.(state.score);
-          popup(`+${POINTS_PER_HIT}`, b.x, b.y - br, true);
-        }
+      // отскок от верха матраса: мяч падает, пересёк его верх и хоть краем над ним
+      const bottom = b.y + br;
+      const reach = m.w / 2 + br * 0.6;
+      if (b.vy > 0 && prevBottom <= m.top + 4 && bottom >= m.top && Math.abs(b.x - m.cx) <= reach) {
+        const offset = Math.max(-1, Math.min(1, (b.x - m.cx) / reach));
+        const ang = offset * MAX_BOUNCE_ANGLE;
+        const v = launchSpeed(m);
+        b.vx = Math.sin(ang) * v + state.matVx * 0.15;
+        b.vy = -Math.cos(ang) * v;
+        const maxVx = size.w * 1.1;
+        b.vx = Math.max(-maxVx, Math.min(maxVx, b.vx));
+        b.y = m.top - br;
+        state.hits += 1;
+        state.score += POINTS_PER_HIT;
+        onScore?.(state.score);
+        popup(`+${POINTS_PER_HIT}`, b.x, b.y - br, true);
+        state.effects.push({ kind: 'ripple', x: m.cx, y: m.surface, t: 0, life: 0.5 });
       }
 
-      if (b.y - br > waterY()) {
-        state.effects.push({ kind: 'splash', x: b.x, y: waterY(), t: 0, life: 0.7 });
+      if (b.y - br > m.surface + m.h * 0.3) {
+        state.effects.push({ kind: 'splash', x: b.x, y: m.surface, t: 0, life: 0.7 });
         state.ball = null;
         state.respawnT = 1.0;
         if (loseLife()) return;
       }
     }
 
-    // бонусы и ловушки
+    // бонусы и ловушки — ловятся матрасом
     state.itemTimer -= dt;
     if (state.itemTimer <= 0) {
       spawnItem();
@@ -6181,27 +6187,28 @@ function createBallGame({ host, onScore, onLives, onGameOver, lives }) {
       const it = state.items[i];
       it.y += it.speed * dt;
       it.wobble += dt * 3;
-      if (Math.hypot(it.x - pg.cx, it.y - pg.headY) < pg.headR + it.r * 0.8) {
+      const onMat = it.y + it.r * 0.7 >= m.top && it.y - it.r < m.top + m.h && Math.abs(it.x - m.cx) <= m.w / 2 + it.r * 0.5;
+      if (onMat) {
         state.items.splice(i, 1);
         if (it.trap) {
-          popup('−1 ♥', it.x, it.y, false);
+          popup('−1 ♥', it.x, m.top - 10, false);
           if (loseLife()) return;
         } else {
           const bonus = BONUS[it.name];
           if (bonus.life && state.lives < maxLives) {
             state.lives += bonus.life;
             onLives?.(state.lives);
-            popup('+1 ♥', it.x, it.y, true);
+            popup('+1 ♥', it.x, m.top - 10, true);
           } else {
             const pts = bonus.points ?? bonus.pointsIfFull;
             state.score += pts;
             onScore?.(state.score);
-            popup(`+${pts}`, it.x, it.y, true);
+            popup(`+${pts}`, it.x, m.top - 10, true);
           }
         }
         continue;
       }
-      if (it.y - it.r > waterY()) state.items.splice(i, 1);
+      if (it.y - it.r > m.surface + m.h) state.items.splice(i, 1);
     }
 
     for (let i = state.effects.length - 1; i >= 0; i--) {
@@ -6226,33 +6233,73 @@ function createBallGame({ host, onScore, onLives, onGameOver, lives }) {
     ctx.restore();
   }
 
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  /** Надувной матрас: полосатый (коралловый/белый), обводка в тон интерфейса. */
+  function drawMat(m) {
+    const x = m.cx - m.w / 2;
+    // тень на воде
+    ctx.fillStyle = 'rgba(0, 70, 90, 0.25)';
+    ctx.beginPath();
+    ctx.ellipse(m.cx, m.surface + m.h * 0.35, m.w * 0.52, m.h * 0.45, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.save();
+    roundRect(x, m.top, m.w, m.h, m.h / 2);
+    ctx.clip();
+    const n = 7;
+    for (let i = 0; i < n; i++) {
+      ctx.fillStyle = i % 2 ? '#FFF6E6' : '#F26B5B';
+      ctx.fillRect(x + (m.w / n) * i, m.top, m.w / n + 1, m.h);
+    }
+    // блик сверху — объём надувного
+    const hl = ctx.createLinearGradient(0, m.top, 0, m.top + m.h);
+    hl.addColorStop(0, 'rgba(255,255,255,.55)');
+    hl.addColorStop(0.45, 'rgba(255,255,255,0)');
+    hl.addColorStop(1, 'rgba(0,0,0,.18)');
+    ctx.fillStyle = hl;
+    ctx.fillRect(x, m.top, m.w, m.h);
+    ctx.restore();
+    roundRect(x, m.top, m.w, m.h, m.h / 2);
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#3B2414';
+    ctx.stroke();
+  }
+
   function render() {
     field.begin();
     if (!assets) return;
     const g = bgGeom();
     ctx.drawImage(assets.bg, g.offX, g.offY, BG_W * g.s, BG_H * g.s);
 
-    const pg = paddleGeom();
-    // ракетка: спрайт 157x245, центр головы на (78, 80) исходника
-    const img = assets.sprites.paddle;
-    const pw = pg.pw;
-    const ph = (img.height / img.width) * pw;
-    ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,.25)';
-    ctx.shadowBlur = 8;
-    ctx.shadowOffsetY = 4;
-    ctx.drawImage(img, pg.cx - pw / 2, pg.headY - 80 * pg.k, pw, ph);
-    ctx.restore();
+    const m = mat();
+    for (const e of state.effects) {
+      if (e.kind !== 'ripple') continue;
+      const a = Math.max(0, 1 - e.t / e.life);
+      ctx.strokeStyle = `rgba(255,255,255,${0.7 * a})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(e.x, e.y + m.h * 0.3, m.w * (0.55 + e.t), m.h * (0.4 + e.t * 0.6), 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    drawMat(m);
 
     for (const it of state.items) drawSprite(it.name, it.x + Math.sin(it.wobble) * 4, it.y, it.r * 2.2);
 
     if (state.ball) {
       const b = state.ball;
       const br = ballR();
-      // тень на бортике — подсказывает, куда падает мяч
-      ctx.fillStyle = 'rgba(40, 60, 80, 0.22)';
+      // тень на матрасе — подсказывает, куда падает мяч
+      ctx.fillStyle = 'rgba(40, 60, 80, 0.25)';
       ctx.beginPath();
-      ctx.ellipse(b.x, pg.headY + pg.headR * 0.9, br * 0.8, br * 0.22, 0, 0, Math.PI * 2);
+      ctx.ellipse(b.x, m.top + 2, br * 0.8, br * 0.2, 0, 0, Math.PI * 2);
       ctx.fill();
       drawSprite('ball_main', b.x, b.y, br * 2.1, b.spin);
     }
@@ -6261,7 +6308,7 @@ function createBallGame({ host, onScore, onLives, onGameOver, lives }) {
       const a = Math.max(0, 1 - e.t / e.life);
       if (e.kind === 'splash') {
         drawSprite('trap_splash', e.x, e.y - 10 - e.t * 20, ballR() * 3, 0, a);
-      } else {
+      } else if (e.kind === 'text') {
         ctx.save();
         ctx.globalAlpha = a;
         ctx.font = '900 22px Nunito, sans-serif';
@@ -6293,8 +6340,8 @@ function createBallGame({ host, onScore, onLives, onGameOver, lives }) {
     field.destroy();
   }
 
-  // _state — только для автотестов (tests/), игра его не читает
-  return { ready, update, resultScore, destroy, _state: state, _geom: () => ({ ...paddleGeom(), waterY: waterY(), ballR: ballR() }) };
+  // _state/_geom — только для автотестов (tests/), игра их не читает
+  return { ready, update, resultScore, destroy, _state: state, _geom: () => ({ ...mat(), ballR: ballR() }) };
 }
 
   return { preloadBallGame, createBallGame };
@@ -6318,13 +6365,14 @@ const RUN_FRAMES = ['run_1', 'run_2', 'run_3', 'run_4'];
 const HERO_FRAMES = [...RUN_FRAMES, 'jump_up', 'stumble'];
 const COIN_FRAMES = ['coin_spin_1', 'coin_spin_2', 'coin_spin_3', 'coin_spin_4'];
 // Высота препятствия — доля роста героини (прыжок поднимает ноги на ~1 рост).
+// Лужа убрана: плоская, сливается с брусчаткой при любом размере (её отзыв
+// 2026-09-26: мелкие препятствия не видно). Голубь увеличен по той же причине.
 const OBSTACLES = {
-  scooter: 0.55,
-  pigeon: 0.25,
-  puddle: 0.13,
-  suitcase: 0.5,
-  tourist_group: 0.72,
-  luggage_pile: 0.6,
+  scooter: 0.78,
+  pigeon: 0.45,
+  suitcase: 0.72,
+  tourist_group: 0.92,
+  luggage_pile: 0.82,
 };
 const OBSTACLE_NAMES = Object.keys(OBSTACLES);
 
@@ -6336,7 +6384,7 @@ const FULL_SHARE = 0.85;
 // Кривые сложности по доле прошедшего раунда p = 0..1.
 const SPEED = [0.5, 0.85]; // ширины поля в секунду
 const OBSTACLE_INTERVAL = [1.6, 1.0]; // сек (+ случайно до 0.5)
-const JUMP_TIME = 0.8; // сек в воздухе
+const JUMP_TIME = 0.95; // сек в воздухе
 const STOP_SPAWN_AT = 0.9; // после этого — только фонтан на финише
 const FOUNTAIN_AT = 0.9;
 
@@ -6425,12 +6473,13 @@ function createRunnerGame({ host, onScore, onLives, onGameOver, lives }) {
     const groundTop = size.h - gH;
     // бег — по брусчатке, а не по бордюру (верхние ~25% полосы — бордюр)
     const feetY = groundTop + gH * 0.52;
-    const heroH = Math.min(size.h * 0.24, size.w * 0.42);
+    // меньше прежних 0.24/0.42: крупная героиня собирала и верхние монеты без прыжка
+    const heroH = Math.min(size.h * 0.19, size.w * 0.34);
     return { gH, groundTop, feetY, heroH, heroX: size.w * 0.24 };
   }
   function jumpPhysics() {
     const { heroH } = layout();
-    const apex = heroH * 1.05; // ноги поднимаются чуть выше роста — хватает на всех
+    const apex = heroH * 1.3; // ноги выше самого высокого препятствия с запасом
     const v0 = (4 * apex) / JUMP_TIME;
     const g = (2 * v0) / JUMP_TIME;
     return { v0, g, apex };
@@ -6459,12 +6508,18 @@ function createRunnerGame({ host, onScore, onLives, onGameOver, lives }) {
     const w = (img.width / img.height) * h;
     const x = size.w + 10;
     state.obstacles.push({ name, x, w, h });
+    // низкие монеты из недавно начатого ряда не должны лежать на препятствии —
+    // их нельзя собрать, не врезавшись (ряд ещё «доезжает» справа)
+    const gap = L.heroH * 0.35;
+    state.coins = state.coins.filter((c) => c.yUp >= L.heroH || c.x < x - gap || c.x > x + w + gap);
     // половина препятствий — с дугой монет сверху (собираются в прыжке)
     if (Math.random() < 0.5) {
       const { apex } = jumpPhysics();
       const r = L.heroH * 0.1;
       for (let i = 0; i < 3; i++) {
-        state.coins.push({ x: x + w / 2 + (i - 1) * r * 2.6, yUp: h + apex * (i === 1 ? 0.55 : 0.4), r, t: Math.random() });
+        // выше роста героини — собираются только в прыжке
+        const yUp = Math.max(L.heroH * 1.2, h + apex * (i === 1 ? 0.6 : 0.45));
+        state.coins.push({ x: x + w / 2 + (i - 1) * r * 2.6, yUp, r, t: Math.random() });
       }
     }
   }
@@ -6476,7 +6531,10 @@ function createRunnerGame({ host, onScore, onLives, onGameOver, lives }) {
     // не класть монеты внутрь ближайшего препятствия
     const last = state.obstacles[state.obstacles.length - 1];
     if (last && last.x + last.w > x0 - r * 4) return;
-    for (let i = 0; i < n; i++) state.coins.push({ x: x0 + i * r * 2.6, yUp: L.heroH * 0.35, r, t: Math.random() });
+    // низкий ряд — на бегу; высокий (выше роста) — только прыжком
+    const high = Math.random() < 0.4;
+    const yUp = high ? L.heroH * 1.35 : L.heroH * 0.35;
+    for (let i = 0; i < n; i++) state.coins.push({ x: x0 + i * r * 2.6, yUp, r, t: Math.random() });
   }
 
   function popup(text, x, y, good) { state.effects.push({ text, x, y, good, t: 0 }); }
@@ -6600,6 +6658,11 @@ function createRunnerGame({ host, onScore, onLives, onGameOver, lives }) {
     }
 
     for (const o of state.obstacles) {
+      // тень под препятствием — отделяет его от пёстрой брусчатки
+      ctx.fillStyle = 'rgba(40, 25, 10, 0.35)';
+      ctx.beginPath();
+      ctx.ellipse(o.x + o.w / 2, L.feetY, o.w * 0.55, Math.max(4, o.h * 0.09), 0, 0, Math.PI * 2);
+      ctx.fill();
       ctx.drawImage(assets.obstacles[o.name], o.x, L.feetY - o.h, o.w, o.h);
     }
     for (const c of state.coins) {

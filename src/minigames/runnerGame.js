@@ -14,13 +14,14 @@ const RUN_FRAMES = ['run_1', 'run_2', 'run_3', 'run_4'];
 const HERO_FRAMES = [...RUN_FRAMES, 'jump_up', 'stumble'];
 const COIN_FRAMES = ['coin_spin_1', 'coin_spin_2', 'coin_spin_3', 'coin_spin_4'];
 // Высота препятствия — доля роста героини (прыжок поднимает ноги на ~1 рост).
+// Лужа убрана: плоская, сливается с брусчаткой при любом размере (её отзыв
+// 2026-09-26: мелкие препятствия не видно). Голубь увеличен по той же причине.
 const OBSTACLES = {
-  scooter: 0.55,
-  pigeon: 0.25,
-  puddle: 0.13,
-  suitcase: 0.5,
-  tourist_group: 0.72,
-  luggage_pile: 0.6,
+  scooter: 0.78,
+  pigeon: 0.45,
+  suitcase: 0.72,
+  tourist_group: 0.92,
+  luggage_pile: 0.82,
 };
 const OBSTACLE_NAMES = Object.keys(OBSTACLES);
 
@@ -32,7 +33,7 @@ const FULL_SHARE = 0.85;
 // Кривые сложности по доле прошедшего раунда p = 0..1.
 const SPEED = [0.5, 0.85]; // ширины поля в секунду
 const OBSTACLE_INTERVAL = [1.6, 1.0]; // сек (+ случайно до 0.5)
-const JUMP_TIME = 0.8; // сек в воздухе
+const JUMP_TIME = 0.95; // сек в воздухе
 const STOP_SPAWN_AT = 0.9; // после этого — только фонтан на финише
 const FOUNTAIN_AT = 0.9;
 
@@ -121,12 +122,13 @@ export function createRunnerGame({ host, onScore, onLives, onGameOver, lives }) 
     const groundTop = size.h - gH;
     // бег — по брусчатке, а не по бордюру (верхние ~25% полосы — бордюр)
     const feetY = groundTop + gH * 0.52;
-    const heroH = Math.min(size.h * 0.24, size.w * 0.42);
+    // меньше прежних 0.24/0.42: крупная героиня собирала и верхние монеты без прыжка
+    const heroH = Math.min(size.h * 0.19, size.w * 0.34);
     return { gH, groundTop, feetY, heroH, heroX: size.w * 0.24 };
   }
   function jumpPhysics() {
     const { heroH } = layout();
-    const apex = heroH * 1.05; // ноги поднимаются чуть выше роста — хватает на всех
+    const apex = heroH * 1.3; // ноги выше самого высокого препятствия с запасом
     const v0 = (4 * apex) / JUMP_TIME;
     const g = (2 * v0) / JUMP_TIME;
     return { v0, g, apex };
@@ -155,12 +157,18 @@ export function createRunnerGame({ host, onScore, onLives, onGameOver, lives }) 
     const w = (img.width / img.height) * h;
     const x = size.w + 10;
     state.obstacles.push({ name, x, w, h });
+    // низкие монеты из недавно начатого ряда не должны лежать на препятствии —
+    // их нельзя собрать, не врезавшись (ряд ещё «доезжает» справа)
+    const gap = L.heroH * 0.35;
+    state.coins = state.coins.filter((c) => c.yUp >= L.heroH || c.x < x - gap || c.x > x + w + gap);
     // половина препятствий — с дугой монет сверху (собираются в прыжке)
     if (Math.random() < 0.5) {
       const { apex } = jumpPhysics();
       const r = L.heroH * 0.1;
       for (let i = 0; i < 3; i++) {
-        state.coins.push({ x: x + w / 2 + (i - 1) * r * 2.6, yUp: h + apex * (i === 1 ? 0.55 : 0.4), r, t: Math.random() });
+        // выше роста героини — собираются только в прыжке
+        const yUp = Math.max(L.heroH * 1.2, h + apex * (i === 1 ? 0.6 : 0.45));
+        state.coins.push({ x: x + w / 2 + (i - 1) * r * 2.6, yUp, r, t: Math.random() });
       }
     }
   }
@@ -172,7 +180,10 @@ export function createRunnerGame({ host, onScore, onLives, onGameOver, lives }) 
     // не класть монеты внутрь ближайшего препятствия
     const last = state.obstacles[state.obstacles.length - 1];
     if (last && last.x + last.w > x0 - r * 4) return;
-    for (let i = 0; i < n; i++) state.coins.push({ x: x0 + i * r * 2.6, yUp: L.heroH * 0.35, r, t: Math.random() });
+    // низкий ряд — на бегу; высокий (выше роста) — только прыжком
+    const high = Math.random() < 0.4;
+    const yUp = high ? L.heroH * 1.35 : L.heroH * 0.35;
+    for (let i = 0; i < n; i++) state.coins.push({ x: x0 + i * r * 2.6, yUp, r, t: Math.random() });
   }
 
   function popup(text, x, y, good) { state.effects.push({ text, x, y, good, t: 0 }); }
@@ -296,6 +307,11 @@ export function createRunnerGame({ host, onScore, onLives, onGameOver, lives }) 
     }
 
     for (const o of state.obstacles) {
+      // тень под препятствием — отделяет его от пёстрой брусчатки
+      ctx.fillStyle = 'rgba(40, 25, 10, 0.35)';
+      ctx.beginPath();
+      ctx.ellipse(o.x + o.w / 2, L.feetY, o.w * 0.55, Math.max(4, o.h * 0.09), 0, 0, Math.PI * 2);
+      ctx.fill();
       ctx.drawImage(assets.obstacles[o.name], o.x, L.feetY - o.h, o.w, o.h);
     }
     for (const c of state.coins) {

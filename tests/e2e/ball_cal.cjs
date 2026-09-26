@@ -20,13 +20,14 @@ const [,, W = '390', H = '844', tag = 'phone'] = process.argv;
       let tx = st.ball ? st.ball.x : w / 2;
       for (const it of st.items) {
         if (!it.trap) continue;
-        if (it.y > geo.headY - geo.headR * 4 && Math.abs(it.x - tx) < geo.headR + it.r + 10) tx = it.x + (tx >= it.x ? 1 : -1) * (geo.headR + it.r + 14);
+        if (it.y > geo.top - geo.w * 0.9 && Math.abs(it.x - tx) < geo.w / 2 + it.r + 6) tx = it.x + (tx >= it.x ? 1 : -1) * (geo.w / 2 + it.r + 10);
       }
       const r = c.getBoundingClientRect();
       document.querySelector('.msc-minigame-field').dispatchEvent(new PointerEvent('pointermove', { pointerType: 'mouse', clientX: r.left + Math.max(0, Math.min(w, tx)), clientY: r.top + 10, bubbles: true }));
     }, 25);
   });
   await p.waitForTimeout(8000);
+  await p.screenshot({ path: OUT + '/ball_mid_' + tag + '.png' });
   await p.screenshot({ path: `${OUT}/ball_mid_${tag}.png` });
   const fin = await p.evaluate(async () => {
     let last = null;

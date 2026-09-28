@@ -432,12 +432,23 @@ export async function runGame() {
       onToggleSound: () => { Sound.unlock(); Sound.toggleMute(); title.setMuted(Sound.isMuted()); },
       onPlay: async () => {
         title.remove();
+        await beginPlaying();
         if (!Storage.get().tutorialSeen) {
+          scene.blocked = true;
+          hud?.setDimmed(true);
           await new Promise((resolve) => {
-            createOnboarding({ container: uiLayer, heroPortrait, onDone: () => { Storage.set({ tutorialSeen: true }); resolve(); } });
+            createOnboarding({
+              container: uiLayer,
+              heroPortrait,
+              onDone: () => {
+                Storage.set({ tutorialSeen: true });
+                scene.blocked = false;
+                hud?.setDimmed(false);
+                resolve();
+              },
+            });
           });
         }
-        beginPlaying();
       },
       onNewGame: () => {
         confirmCentered(uiLayer, STRINGS.menu.newGameConfirm).then((yes) => {

@@ -2,3 +2,5 @@ Thumbs.db
 .DS_Store
 *.log
 tools/_asset_report/
+assets/raw/
+assets/minigames/runner/obstacles/obj*.png

@@ -4,3 +4,4 @@ Thumbs.db
 tools/_asset_report/
 assets/raw/
 assets/minigames/runner/obstacles/obj*.png
+.playwright-mcp/

@@ -6,7 +6,7 @@ const [,, W = '390', H = '844', tag = 'phone'] = process.argv;
   const p = await b.newPage({ viewport: { width: +W, height: +H }, deviceScaleFactor: 2 });
   await p.goto(URL);
   await p.getByRole('button', { name: 'Играть', exact: true }).click();
-  for (let k = 0; k < 6; k++) { if (await p.evaluate(() => !!window.__game?.scene?.game)) break; await p.waitForTimeout(500); const s = p.getByRole('button', { name: 'Пропустить', exact: true }); if (await s.count()) await s.first().click().catch(() => {}); }
+  for (let k = 0; k < 6; k++) { if (await p.evaluate(() => !!window.__game?.scene?.game && !document.querySelector('.msc-onboarding'))) break; await p.waitForTimeout(500); const s = p.getByRole('button', { name: 'Пропустить', exact: true }); if (await s.count()) await s.first().click().catch(() => {}); }
   await p.evaluate(() => { const s = window.__game.scene; s.game.onHotspotPlay({ id: 'ballMinigame', type: 'minigame' }, s.data.id); });
   await p.locator('.msc-minigame-cta button, .msc-minigame-cta').first().click();
   await p.waitForSelector('.msc-minigame-field canvas');

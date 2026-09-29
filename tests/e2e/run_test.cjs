@@ -7,7 +7,7 @@ const [,, W = '1082', H = '700', tag = 'desk', mode = 'bot'] = process.argv;
   const errors = []; p.on('pageerror', (e) => errors.push(String(e)));
   await p.goto(URL);
   await p.getByRole('button', { name: 'Играть', exact: true }).click();
-  for (let k = 0; k < 6; k++) { if (await p.evaluate(() => !!window.__game?.scene?.game)) break; await p.waitForTimeout(500); const s = p.getByRole('button', { name: 'Пропустить', exact: true }); if (await s.count()) await s.first().click().catch(() => {}); }
+  for (let k = 0; k < 6; k++) { if (await p.evaluate(() => !!window.__game?.scene?.game && !document.querySelector('.msc-onboarding'))) break; await p.waitForTimeout(500); const s = p.getByRole('button', { name: 'Пропустить', exact: true }); if (await s.count()) await s.first().click().catch(() => {}); }
   await p.evaluate(() => { const s = window.__game.scene; s.game.onHotspotPlay({ id: 'coinsMinigame', type: 'minigame' }, s.data.id); });
   await p.waitForSelector('.msc-minigame-cta');
   await p.screenshot({ path: `${OUT}/run_intro_${tag}.png` });

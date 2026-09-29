@@ -1,7 +1,7 @@
 {
   "id": "rome",
   "label": "Рим",
-  "image": "assets/scenes/rome_bg.png",
+  "image": "assets/scenes/rome_bg.jpg",
   "size": [848, 1264],
   "spawn": [425, 900],
   "walkable": [

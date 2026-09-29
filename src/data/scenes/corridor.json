@@ -1,7 +1,7 @@
 {
   "id": "corridor",
   "label": "Коридор",
-  "image": "assets/scenes/corridor_bg.png",
+  "image": "assets/scenes/corridor_bg.jpg",
   "size": [848, 1264],
   "spawn": [430, 1050],
   "walkable": [

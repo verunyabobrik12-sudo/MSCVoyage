@@ -8,7 +8,7 @@ const out = []; const check = (n, ok, info = '') => out.push(`${ok ? 'OK  ' : 'F
   const errors = []; p.on('pageerror', (e) => errors.push(String(e)));
   await p.goto(URL);
   await p.getByRole('button', { name: 'Играть', exact: true }).click();
-  for (let k = 0; k < 6; k++) { if (await p.evaluate(() => !!window.__game?.scene?.game)) break; await p.waitForTimeout(500); const s = p.getByRole('button', { name: 'Пропустить', exact: true }); if (await s.count()) await s.first().click().catch(() => {}); }
+  for (let k = 0; k < 6; k++) { if (await p.evaluate(() => !!window.__game?.scene?.game && !document.querySelector('.msc-onboarding'))) break; await p.waitForTimeout(500); const s = p.getByRole('button', { name: 'Пропустить', exact: true }); if (await s.count()) await s.first().click().catch(() => {}); }
   await p.evaluate(() => window.__game.Storage.set({ completedQuizzes: { msc: true }, completedMinigames: {} }));
   await p.getByRole('button', { name: /Карта/ }).first().click();
   await p.waitForSelector('.msc-map-place');

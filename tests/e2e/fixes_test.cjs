@@ -19,7 +19,7 @@ const check = (name, ok, info = '') => { results.push(`${ok ? 'OK  ' : 'FAIL'} $
 
   await p.getByRole('button', { name: 'Играть', exact: true }).click();
   for (let k = 0; k < 6; k++) {
-    if (await p.evaluate(() => !!window.__game?.scene?.game)) break;
+    if (await p.evaluate(() => !!window.__game?.scene?.game && !document.querySelector('.msc-onboarding'))) break;
     await p.waitForTimeout(500);
     const s = p.getByRole('button', { name: 'Пропустить', exact: true });
     if (await s.count()) await s.first().click().catch(() => {});

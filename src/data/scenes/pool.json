@@ -1,7 +1,7 @@
 {
   "id": "pool",
   "label": "Бассейн",
-  "image": "assets/scenes/pool_bg.png",
+  "image": "assets/scenes/pool_bg.jpg",
   "size": [848, 1264],
   "spawn": [425, 1010],
   "walkable": [

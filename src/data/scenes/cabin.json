@@ -1,7 +1,7 @@
 {
   "id": "cabin",
   "label": "Каюта",
-  "image": "assets/scenes/cabin_bg.png",
+  "image": "assets/scenes/cabin_bg.jpg",
   "size": [848, 1264],
   "spawn": [420, 1080],
   "walkable": [

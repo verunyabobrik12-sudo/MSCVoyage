@@ -14,7 +14,7 @@ const step = (s) => { log.push(s); console.log(s); };
   const errors = []; p.on('pageerror', (e) => errors.push(String(e)));
   await p.goto(URL);
   await p.getByRole('button', { name: 'Играть', exact: true }).click();
-  for (let k = 0; k < 6; k++) { if (await p.evaluate(() => !!window.__game?.scene?.game)) break; await p.waitForTimeout(500); const s = p.getByRole('button', { name: 'Пропустить', exact: true }); if (await s.count()) await s.first().click().catch(() => {}); }
+  for (let k = 0; k < 6; k++) { if (await p.evaluate(() => !!window.__game?.scene?.game && !document.querySelector('.msc-onboarding'))) break; await p.waitForTimeout(500); const s = p.getByRole('button', { name: 'Пропустить', exact: true }); if (await s.count()) await s.first().click().catch(() => {}); }
   await p.waitForTimeout(600);
 
   const sceneId = () => p.evaluate(() => window.__game.scene.data.id);

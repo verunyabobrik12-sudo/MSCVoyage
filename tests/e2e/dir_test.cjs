@@ -5,7 +5,7 @@ require('fs').mkdirSync(OUT, { recursive: true });
   const p = await b.newPage({ viewport: { width: 1082, height: 700 } });
   await p.goto(URL);
   await p.getByRole('button', { name: 'Играть', exact: true }).click();
-  for (let k = 0; k < 6; k++) { if (await p.evaluate(() => !!window.__game?.scene?.game)) break; await p.waitForTimeout(500); const s = p.getByRole('button', { name: 'Пропустить', exact: true }); if (await s.count()) await s.first().click().catch(() => {}); }
+  for (let k = 0; k < 6; k++) { if (await p.evaluate(() => !!window.__game?.scene?.game && !document.querySelector('.msc-onboarding'))) break; await p.waitForTimeout(500); const s = p.getByRole('button', { name: 'Пропустить', exact: true }); if (await s.count()) await s.first().click().catch(() => {}); }
   await p.evaluate(() => window.__game.scene.game.onSceneDoor({ target: 'corridor' }));
   await p.waitForFunction(() => window.__game.scene.data.id === 'corridor');
   await p.waitForTimeout(500);
